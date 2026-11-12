@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#090b12">
+  <meta name="description" content="Fortnite Companion – Dein Hub für Statistiken, Loot, News und Tools.">
+  <title>Fortnite Companion</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <a href="#" class="brand">
+        <div class="brand-icon">F</div>
+        <div>
+          <strong>FORTNITE</strong>
+          <span>COMPANION</span>
+        </div>
+      </a>
+
+      <div class="nav-label">MAIN MENU</div>
+      <nav class="navigation">
+        <button class="nav-item active" data-page="Dashboard">
+          <span>◈</span> Dashboard
+        </button>
+        <button class="nav-item" data-page="Pirate Tracker">
+          <span>♜</span> Pirate Tracker
+        </button>
+        <button class="nav-item" data-page="Item Shop">
+          <span>◇</span> Item Shop
+        </button>
+        <button class="nav-item" data-page="Player Stats">
+          <span>▥</span> Player Stats
+        </button>
+        <button class="nav-item" data-page="Interactive Map">
+          <span>◎</span> Interactive Map
+        </button>
+        <button class="nav-item" data-page="Weapon Database">
+          <span>⚔</span> Weapon Database
+        </button>
+      </nav>
+
+      <div class="nav-label">DISCOVER</div>
+      <nav class="navigation">
+        <button class="nav-item" data-page="News & Updates">
+          <span>▤</span> News & Updates
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <button class="nav-item" data-page="Settings">
+          <span>⚙</span> Settings
+        </button>
+        <div class="sidebar-version">
+          <span class="status-dot"></span>
+          Companion v1.0
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" aria-label="Menü öffnen">☰</button>
+
+        <div class="breadcrumb">
+          <span>COMPANION</span>
+          <span>/</span>
+          <strong id="pageTitle">Dashboard</strong>
+        </div>
+
+        <div class="topbar-right">
+          <div class="live-status">
+            <span class="status-dot"></span>
+            ONLINE
+          </div>
+          <div class="avatar">FC</div>
+        </div>
+      </header>
+
+      <section class="content">
+
+        <div class="welcome">
+          <div>
+            <div class="eyebrow">YOUR FORTNITE HUB</div>
+            <h1>Welcome to <span>Companion.</span></h1>
+            <p>Everything Fortnite. All in one place.</p>
+          </div>
+          <div class="date-card">
+            <span>HEUTE</span>
+            <strong id="currentDate">--.--.----</strong>
+          </div>
+        </div>
+
+        <div class="hero">
+          <div class="hero-content">
+            <div class="hero-tag">YOUR ULTIMATE FORTNITE HUB</div>
+            <h2>Level up your<br>Fortnite experience.</h2>
+            <p>Stats, tools, loot and everything you need<br class="desktop-only"> to stay ahead of the game.</p>
+            <button class="primary-button" id="exploreButton">
+              Explore Companion <span>→</span>
+            </button>
+          </div>
+          <div class="hero-decoration">FC</div>
+        </div>
+        <div class="section-heading">
+          <div>
+            <h2>Quick Access</h2>
+            <p>Jump straight into your favorite tools.</p>
+          </div>
+        </div>
+
+        <div class="quick-grid">
+          <button class="quick-card" data-page="Pirate Tracker">
+            <div class="quick-icon pirate">♜</div>
+            <div>
+              <h3>Pirate Tracker</h3>
+              <p>Track chests and tokens</p>
+            </div>
+            <span class="arrow">↗</span>
+          </button>
+
+          <button class="quick-card" data-page="Item Shop">
+            <div class="quick-icon shop">◇</div>
+            <div>
+              <h3>Item Shop</h3>
+              <p>Explore cosmetics</p>
+            </div>
+            <span class="arrow">↗</span>
+          </button>
+
+          <button class="quick-card" data-page="Player Stats">
+            <div class="quick-icon stats">▥</div>
+            <div>
+              <h3>Player Stats</h3>
+              <p>Analyze your performance</p>
+            </div>
+            <span class="arrow">↗</span>
+          </button>
+
+          <button class="quick-card" data-page="Interactive Map">
+            <div class="quick-icon map">◎</div>
+            <div>
+              <h3>Interactive Map</h3>
+              <p>Discover locations</p>
+            </div>
+            <span class="arrow">↗</span>
+          </button>
+        </div>
+
+        <div class="section-heading">
+          <div>
+            <h2>Platform Overview</h2>
+            <p>Your companion at a glance.</p>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">TOOLS</span>
+            <strong>06</strong>
+            <span class="stat-note">Planned modules</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">GAME MODE</span>
+            <strong>ZERO BUILD</strong>
+            <span class="stat-note">Focus mode</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">VERSION</span>
+            <strong>1.0.0</strong>
+            <span class="stat-note">Initial release</span>
+          </div>
+        </div>
+
+        <footer>
+          <span>FORTNITE COMPANION</span>
+          <span>NOT AFFILIATED WITH EPIC GAMES</span>
+        </footer>
+
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
