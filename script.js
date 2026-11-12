@@ -248,7 +248,9 @@ function savePirateData() {
   );
 }
 
-function renderPirateTracker() {
+function renderPirateTracker(){
+updatePirateTracker();
+updateGroupCalculator(); 
   content.innerHTML = `
     <div class="eyebrow">FORTNITE COMPANION / TRACKER</div>
 
