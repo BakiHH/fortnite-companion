@@ -44,7 +44,7 @@ const pages = {
     cards: [
       ["Chest Counter", "Track opened chests per match."],
       ["Token Progress", "Keep track of your Pirate Token progress."],
-      ["Duo Farm Calculator", "Analyze your farming efficiency."]
+      ["Group Farm Calculator", "Analyze your farming efficiency."]
     ]
   },
 
@@ -126,6 +126,11 @@ function selectPage(page) {
   });
 
   sidebar.classList.remove("open");
+
+  if (page === "Pirate Tracker") {
+    renderPirateTracker();
+    return;
+  }
 
   if (page === "Dashboard") {
     content.innerHTML = dashboardHTML;
