@@ -1,496 +1,150 @@
-const sidebar = document.getElementById("sidebar");
-const menuToggle = document.getElementById("menuToggle");
+const content = document.getElementById("content");
 const pageTitle = document.getElementById("pageTitle");
+const sidebar = document.getElementById("sidebar");
 const toast = document.getElementById("toast");
-const content = document.querySelector(".content");
+const STORAGE_KEY = "fortniteCompanionPirateTrackerV1";
 
-// Dashboard als Ausgangszustand speichern
-const dashboardHTML = content.innerHTML;
+const defaultState = { totalChests: 0, totalTokens: 0, rounds: [], groupSize: 2, players: 2, chestsPerPlayer: 25 };
+let trackerState = loadState();
 
-// Datum
-function updateDate() {
-  const date = new Date();
-
-  document.getElementById("currentDate").textContent =
-    new Intl.DateTimeFormat("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    }).format(date);
+function loadState(){
+  try { return { ...defaultState, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") }; }
+  catch { return { ...defaultState }; }
 }
-
-updateDate();
-
-// Toast-Nachricht
-let toastTimeout;
-
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add("show");
-
-  clearTimeout(toastTimeout);
-
-  toastTimeout = setTimeout(() => {
-    toast.classList.remove("show");
-  }, 2500);
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(trackerState)); }
+function showToast(message){
+  toast.textContent = message; toast.classList.add("show");
+  clearTimeout(showToast.timer); showToast.timer = setTimeout(() => toast.classList.remove("show"), 2400);
 }
-
-// Seiteninhalte
-const pages = {
-  "Pirate Tracker": {
-    icon: "♜",
-    description: "Track your chests, tokens and farming progress.",
-    title: "Pirate Tracker",
-    cards: [
-      ["Chest Counter", "Track opened chests per match."],
-      ["Token Progress", "Keep track of your Pirate Token progress."],
-      ["Group Farm Calculator", "Analyze your farming efficiency."]
-    ]
-  },
-
-  "Item Shop": {
-    icon: "◇",
-    description: "Explore Fortnite cosmetics and shop information.",
-    title: "Item Shop",
-    cards: [
-      ["Current Shop", "View the latest cosmetic offers."],
-      ["Skin Database", "Explore Fortnite outfits."],
-      ["Favorites", "Keep your favorite cosmetics in one place."]
-    ]
-  },
-
-  "Player Stats": {
-    icon: "▥",
-    description: "Analyze your Fortnite performance.",
-    title: "Player Statistics",
-    cards: [
-      ["Player Overview", "Your overall performance."],
-      ["K/D Ratio", "Analyze your eliminations and deaths."],
-      ["Match History", "Review your previous matches."]
-    ]
-  },
-
-  "Interactive Map": {
-    icon: "◎",
-    description: "Discover locations, landing spots and loot routes.",
-    title: "Interactive Map",
-    cards: [
-      ["Battle Royale Map", "Explore the current island."],
-      ["Loot Locations", "Discover useful loot locations."],
-      ["Landing Spots", "Find your next landing destination."]
-    ]
-  },
-
-  "Weapon Database": {
-    icon: "⚔",
-    description: "Explore weapons, damage values and statistics.",
-    title: "Weapon Database",
-    cards: [
-      ["Weapon Overview", "Browse available weapons."],
-      ["Damage Comparison", "Compare weapon damage."],
-      ["Weapon Rankings", "Discover the strongest weapons."]
-    ]
-  },
-
-  "News & Updates": {
-    icon: "▤",
-    description: "Stay up to date with Fortnite news and updates.",
-    title: "News & Updates",
-    cards: [
-      ["Latest News", "Discover the latest announcements."],
-      ["Patch Notes", "Explore Fortnite updates."],
-      ["Events", "Keep track of upcoming events."]
-    ]
-  },
-
-  "Settings": {
-    icon: "⚙",
-    description: "Customize your Fortnite Companion experience.",
-    title: "Settings",
-    cards: [
-      ["Appearance", "Customize your interface."],
-      ["Language", "Manage your language preferences."],
-      ["About", "Information about Fortnite Companion."]
-    ]
-  }
-};
-// Seite anzeigen
-function selectPage(page) {
+function updateDate(){
+  const el = document.getElementById("currentDate");
+  if(el) el.textContent = new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date());
+}
+function setActivePage(page){
+  document.querySelectorAll(".nav-item[data-page]").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page));
   pageTitle.textContent = page;
-
-  document.querySelectorAll(".nav-item").forEach(button => {
-    button.classList.toggle(
-      "active",
-      button.dataset.page === page
-    );
-  });
-
   sidebar.classList.remove("open");
-
-  if (page === "Pirate Tracker") {
-    renderPirateTracker();
-    return;
-  }
-
-  if (page === "Dashboard") {
-    content.innerHTML = dashboardHTML;
-    updateDate();
-    showToast("Dashboard opened");
-    return;
-  }
-
-  const data = pages[page];
-
-  if (!data) return;
-
+}
+function selectPage(page){
+  setActivePage(page);
+  if(page === "Dashboard"){ renderDashboard(); return; }
+  if(page === "Pirate Tracker"){ renderPirateTracker(); return; }
+  renderPlaceholder(page);
+}
+function renderDashboard(){
   content.innerHTML = `
-    <div class="eyebrow">FORTNITE COMPANION / MODULE</div>
-
-    <div class="module-heading">
-      <div class="module-icon">${data.icon}</div>
-      <div>
-        <h1>${data.title}</h1>
-        <p>${data.description}</p>
-      </div>
+    <div class="welcome"><div><div class="eyebrow">YOUR FORTNITE HUB</div><h1>Welcome to <span>Companion.</span></h1><p>Everything Fortnite. All in one place.</p></div><div class="date-card"><span>HEUTE</span><strong id="currentDate">--.--.----</strong></div></div>
+    <div class="hero"><div class="hero-content"><div class="hero-tag">YOUR ULTIMATE FORTNITE HUB</div><h2>Level up your<br>Fortnite experience.</h2><p>Stats, tools, loot and everything you need<br class="desktop-only"> to stay ahead of the game.</p><button class="primary-button" id="exploreButton">Explore Companion <span>→</span></button></div><div class="hero-decoration">FC</div></div>
+    <div class="section-heading"><div><h2>Quick Access</h2><p>Jump straight into your favorite tools.</p></div></div>
+    <div class="quick-grid">
+      <button class="quick-card" data-page="Pirate Tracker"><div class="quick-icon pirate">♜</div><div><h3>Pirate Tracker</h3><p>Track chests and tokens</p></div><span class="arrow">↗</span></button>
+      <button class="quick-card" data-page="Item Shop"><div class="quick-icon shop">◇</div><div><h3>Item Shop</h3><p>Explore cosmetics</p></div><span class="arrow">↗</span></button>
+      <button class="quick-card" data-page="Player Stats"><div class="quick-icon stats">▥</div><div><h3>Player Stats</h3><p>Analyze your performance</p></div><span class="arrow">↗</span></button>
+      <button class="quick-card" data-page="Interactive Map"><div class="quick-icon map">◎</div><div><h3>Interactive Map</h3><p>Discover locations</p></div><span class="arrow">↗</span></button>
     </div>
-
-    <div class="section-heading">
-      <div>
-        <h2>Overview</h2>
-        <p>Explore your ${page} tools.</p>
-      </div>
-    </div>
-
-    <div class="module-grid">
-      ${data.cards.map(card => `
-        <div class="module-card">
-          <h3>${card[0]}</h3>
-          <p>${card[1]}</p>
-          <span class="module-coming">COMING SOON</span>
-        </div>
-      `).join("")}
-    </div>
-
-    <footer>
-      <span>FORTNITE COMPANION</span>
-      <span>NOT AFFILIATED WITH EPIC GAMES</span>
-    </footer>
-  `;
-
-  showToast(page + " opened");
+    <div class="section-heading"><div><h2>Platform Overview</h2><p>Your companion at a glance.</p></div></div>
+    <div class="stats-grid"><div class="stat-card"><span class="stat-label">TOOLS</span><strong>06</strong><span class="stat-note">Planned modules</span></div><div class="stat-card"><span class="stat-label">GAME MODE</span><strong>ZERO BUILD</strong><span class="stat-note">Focus mode</span></div><div class="stat-card"><span class="stat-label">VERSION</span><strong>1.1.0</strong><span class="stat-note">Companion update</span></div></div>
+    <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
+  updateDate();
 }
-
-// Navigation
-document.querySelectorAll(".nav-item").forEach(button => {
-  button.addEventListener("click", () => {
-    selectPage(button.dataset.page);
-  });
-});
-
-// Quick Access und Explore Button
-content.addEventListener("click", event => {
-  const quickCard = event.target.closest(".quick-card");
-
-  if (quickCard) {
-    selectPage(quickCard.dataset.page);
-  }
-
-  if (event.target.closest("#exploreButton")) {
-    selectPage("Pirate Tracker");
-  }
-});
-
-// Mobiles Menü
-menuToggle.addEventListener("click", () => {
-  sidebar.classList.toggle("open");
-});
-
-// Profil
-document.getElementById("profileButton").addEventListener("click", () => {
-  showToast("Profile settings – coming soon!");
-});
-// ========================================
-// PIRATE TRACKER
-// ========================================
-
-const PIRATE_STORAGE = "fortnite-companion-pirate-v1";
-
-function loadPirateData() {
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem(PIRATE_STORAGE)
-    );
-
-    if (
-      saved &&
-      Number.isInteger(saved.chests) &&
-      saved.chests >= 0 &&
-      Array.isArray(saved.history)
-    ) {
-      return saved;
-    }
-  } catch (error) {
-    console.warn("Could not load Pirate Tracker data", error);
-  }
-
-  return {
-    chests: 0,
-    history: []
+function renderPlaceholder(page){
+  const descriptions = {
+    "Item Shop":"Hier entsteht eine Übersicht des aktuellen Fortnite Item Shops.",
+    "Player Stats":"Bereite deine Spielerstatistiken und Performance-Auswertung vor.",
+    "Interactive Map":"Hier entsteht eine interaktive Karte mit wichtigen Fundorten.",
+    "Weapon Database":"Waffenwerte, Seltenheiten und Vergleiche an einem Ort.",
+    "News & Updates":"Aktuelle Fortnite-News und Update-Informationen.",
+    "Settings":"Einstellungen für deinen Fortnite Companion."
   };
+  content.innerHTML = `<div class="page-header"><div class="eyebrow">FORTNITE COMPANION</div><h1>${escapeHTML(page)}</h1><p>${descriptions[page] || "Dieser Bereich wird vorbereitet."}</p></div><div class="placeholder-grid"><div class="panel-card"><h2>Coming soon</h2><p class="muted">Dieser Bereich wird in einem kommenden Update mit Funktionen gefüllt.</p></div><div class="panel-card"><h2>Dein Companion</h2><p class="muted">Die Navigation ist bereits aktiv. Deine Pirate-Tracker-Daten bleiben lokal auf diesem Gerät gespeichert.</p></div></div><footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
 }
-
-let pirateData = loadPirateData();
-
-function savePirateData() {
-  localStorage.setItem(
-    PIRATE_STORAGE,
-    JSON.stringify(pirateData)
-  );
-}
+function escapeHTML(value){ return String(value).replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch])); }
 
 function renderPirateTracker(){
   content.innerHTML = `
-    <div class="eyebrow">FORTNITE COMPANION / TRACKER</div>
-
-    <div class="module-heading">
-      <div class="module-icon">♜</div>
-      <div>
-        <h1>Pirate Tracker</h1>
-        <p>Track your chest farming progress.</p>
-      </div>
+    <div class="page-header"><div class="eyebrow">ZERO BUILD • LOOT TRACKING</div><h1>Pirate Tracker</h1><p>Erfasse deine geöffneten Truhen und Tokens und behalte deine Farm-Runden im Blick.</p></div>
+    <div class="tracker-grid">
+      <div class="metric-card"><span class="metric-label">GESAMT GEÖFFNETE TRUHEN</span><strong id="totalChests">0</strong><small>Über alle gespeicherten Runden</small></div>
+      <div class="metric-card"><span class="metric-label">GEFUNDENE TOKENS</span><strong id="totalTokens">0</strong><small>Manuell erfasste Token-Funde</small></div>
+      <div class="metric-card"><span class="metric-label">GESPEICHERTE RUNDEN</span><strong id="roundCount">0</strong><small>Dein persönlicher Verlauf</small></div>
     </div>
-
-    <div class="pirate-stats">
-      <div class="pirate-stat">
-        <span>TOTAL CHESTS</span>
-        <strong id="totalChests">0</strong>
-        <small>Saved rounds</small>
+    <div class="panel-card">
+      <h2>Runde erfassen</h2><p>Trage ein, wie viele Truhen und Tokens ihr in dieser Runde gefunden habt.</p>
+      <div class="form-grid">
+        <div class="field"><label for="roundChests">Geöffnete Truhen</label><input id="roundChests" type="number" min="0" max="999" value="40"></div>
+        <div class="field"><label for="roundTokens">Gefundene Tokens</label><input id="roundTokens" type="number" min="0" max="99" value="0"></div>
+        <div class="field"><label for="roundPlayers">Aktive Spieler</label><select id="roundPlayers"><option value="1">1 Spieler</option><option value="2" selected>2 Spieler (Duo)</option><option value="3">3 Spieler</option><option value="4">4 Spieler</option></select></div>
       </div>
-      <div class="pirate-stat">
-        <span>CURRENT ROUND</span>
-        <strong id="roundChests">0</strong>
-        <small>Chests this round</small>
-      </div>
-
-      <div class="pirate-stat">
-        <span>AVERAGE</span>
-        <strong id="averageChests">0</strong>
-        <small>Chests per round</small>
-      </div>
+      <div class="action-row"><button class="btn primary" id="saveRound">Runde speichern</button><button class="btn" id="addChest">+1 Truhe</button><button class="btn" id="addFiveChests">+5 Truhen</button></div>
+      <div class="result-line" id="roundFeedback">Deine Einträge werden lokal in diesem Browser gespeichert.</div>
     </div>
-
-    <div class="pirate-layout">
-
-      <section class="pirate-panel">
-        <div class="panel-heading">
-          <h2>Chest Counter</h2>
-          <span class="live-label">LIVE TRACKING</span>
-        </div>
-
-        <div class="counter-display">
-          <strong id="counterValue">0</strong>
-          <span>CHESTS OPENED</span>
-        </div>
-
-        <div class="counter-buttons">
-          <button class="counter-button" id="addOne">+1 CHEST</button>
-          <button class="counter-button" id="addFive">+5 CHESTS</button>
-        </div>
-
-        <div class="counter-actions">
-          <button id="saveRound" class="save-round">
-            Save Round
-          </button>
-          <button id="resetRound" class="reset-round">
-            Reset
-          </button>
-        </div>
-
-        <p class="tracker-hint">
-          Save your round to add it to your statistics.
-        </p>
-      </section>
-
-      <section class="pirate-panel">
-        <div class="panel-heading">
-          <h2>Group Farm Calculator</h2>
-          <span class="live-label">CALCULATOR</span>
-        </div>
-
-        <label class="tracker-label" for="groupSize">
-          Number of players
-        </label>
-
-        <select id="groupSize" class="tracker-input">
-          <option value="1">1 Player</option>
-          <option value="2">2 Players</option>
-          <option value="3">3 Players</option>
-          <option value="4">4 Players</option>
-        </select>
-
-        <label class="tracker-label" for="chestsPerPlayer">
-          Expected chests per player
-        </label>
-
-        <input
-          id="chestsPerPlayer"
-          class="tracker-input"
-          type="number"
-          min="0"
-          max="10000"
-          value="40"
-        >
-
-        <div class="calculator-result">
-          <span>Estimated group total</span>
-          <strong id="groupResult">80</strong>
-          <small>Expected chests per round</small>
-        </div>
-      </section>
-
-    </div>
-
-    <section class="pirate-panel history-panel">
-      <div class="panel-heading">
-        <div>
-          <h2>Round History</h2>
-          <p>Your previously saved farming rounds.</p>
-        </div>
-        <button id="clearHistory" class="reset-round">
-          Clear History
-        </button>
+    <div class="panel-card">
+      <h2>Group Farm Calculator</h2><p>Berechne die erwartete Truhenmenge einer Gruppe anhand eurer durchschnittlichen Funde pro Spieler.</p>
+      <div class="form-grid">
+        <div class="field"><label for="groupPlayers">Spieler in der Gruppe</label><input id="groupPlayers" type="number" min="1" max="4" value="${trackerState.groupSize}"></div>
+        <div class="field"><label for="chestsPerPlayer">Truhen pro Spieler</label><input id="chestsPerPlayer" type="number" min="0" max="200" value="25"></div>
+        <div class="field"><label for="groupRuns">Anzahl der Runden</label><input id="groupRuns" type="number" min="1" max="100" value="1"></div>
       </div>
-
-      <div id="roundHistory"></div>
-    </section>
-
-    <footer>
-      <span>FORTNITE COMPANION</span>
-      <span>NOT AFFILIATED WITH EPIC GAMES</span>
-    </footer>
-  `;
-
+      <div class="result-line" id="groupResult"></div>
+    </div>
+    <div class="panel-card">
+      <div class="section-heading" style="margin-top:0"><div><h2>Rundenverlauf</h2><p>Deine zuletzt gespeicherten Farm-Runden.</p></div></div>
+      <div class="table-wrap"><table><thead><tr><th>DATUM</th><th>TRUHEN</th><th>TOKENS</th><th>SPIELER</th><th>AKTION</th></tr></thead><tbody id="roundHistory"></tbody></table></div>
+      <div class="action-row"><button class="btn danger" id="clearHistory">Verlauf löschen</button></div>
+    </div>
+    <footer><span>FORTNITE COMPANION</span><span>TRACKER-DATEN BLEIBEN AUF DIESEM GERÄT</span></footer>`;
   updatePirateTracker();
+  updateGroupCalculator();
+  document.getElementById("saveRound").addEventListener("click", saveRound);
+  document.getElementById("addChest").addEventListener("click", () => adjustChest(1));
+  document.getElementById("addFiveChests").addEventListener("click", () => adjustChest(5));
+  ["groupPlayers","chestsPerPlayer","groupRuns"].forEach(id => document.getElementById(id).addEventListener("input", updateGroupCalculator));
+  document.getElementById("clearHistory").addEventListener("click", clearHistory);
+}
+function updatePirateTracker(){
+  const totalChests = trackerState.rounds.reduce((sum,r)=>sum+r.chests,0);
+  const totalTokens = trackerState.rounds.reduce((sum,r)=>sum+r.tokens,0);
+  document.getElementById("totalChests").textContent = totalChests.toLocaleString("de-DE");
+  document.getElementById("totalTokens").textContent = totalTokens.toLocaleString("de-DE");
+  document.getElementById("roundCount").textContent = trackerState.rounds.length;
+  const tbody = document.getElementById("roundHistory");
+  if(!trackerState.rounds.length){tbody.innerHTML='<tr><td colspan="5" class="empty-state">Noch keine Runden gespeichert.</td></tr>';return;}
+  tbody.innerHTML = [...trackerState.rounds].reverse().map(round=>`<tr><td>${escapeHTML(round.date)}</td><td>${round.chests}</td><td>${round.tokens}</td><td>${round.players}</td><td><button class="btn danger delete-round" data-id="${round.id}">Löschen</button></td></tr>`).join("");
+  tbody.querySelectorAll(".delete-round").forEach(btn=>btn.addEventListener("click",()=>deleteRound(btn.dataset.id)));
+}
+function saveRound(){
+  const chests = Math.max(0,Math.min(999,Number(document.getElementById("roundChests").value)||0));
+  const tokens = Math.max(0,Math.min(99,Number(document.getElementById("roundTokens").value)||0));
+  const players = Number(document.getElementById("roundPlayers").value)||2;
+  trackerState.rounds.push({id:Date.now().toString(),date:new Intl.DateTimeFormat("de-DE",{dateStyle:"short",timeStyle:"short"}).format(new Date()),chests,tokens,players});
+  saveState(); updatePirateTracker();
+  document.getElementById("roundFeedback").innerHTML = `Gespeichert: <strong>${chests} Truhen</strong>, <strong>${tokens} Tokens</strong> bei ${players} Spieler(n).`;
+  showToast("Runde wurde gespeichert.");
+}
+function adjustChest(amount){
+  const field=document.getElementById("roundChests");
+  field.value=Math.max(0,Number(field.value||0)+amount);
+}
+function updateGroupCalculator(){
+  const players=Math.max(1,Math.min(4,Number(document.getElementById("groupPlayers").value)||1));
+  const perPlayer=Math.max(0,Number(document.getElementById("chestsPerPlayer").value)||0);
+  const runs=Math.max(1,Number(document.getElementById("groupRuns").value)||1);
+  trackerState.groupSize=players; saveState();
+  document.getElementById("groupResult").innerHTML=`Erwartete Truhen: <strong>${(players*perPlayer*runs).toLocaleString("de-DE")}</strong> insgesamt (${players} Spieler × ${perPlayer} Truhen × ${runs} Runde${runs===1?"":"n"}).`;
+}
+function deleteRound(id){trackerState.rounds=trackerState.rounds.filter(r=>r.id!==id);saveState();updatePirateTracker();showToast("Runde gelöscht.");}
+function clearHistory(){
+  if(!trackerState.rounds.length){showToast("Der Verlauf ist bereits leer.");return;}
+  if(!confirm("Möchtest du wirklich alle gespeicherten Runden löschen?")) return;
+  trackerState.rounds=[];saveState();updatePirateTracker();showToast("Verlauf wurde gelöscht.");
 }
 
-function updatePirateTracker() {
-  const total = pirateData.history.reduce(
-    (sum, round) => sum + round.chests,
-    0
-  );
-
-  const count = pirateData.history.length;
-
-  document.getElementById("totalChests").textContent = total;
-  document.getElementById("roundChests").textContent =
-    pirateData.chests;
-
-  document.getElementById("counterValue").textContent =
-    pirateData.chests;
-
-  document.getElementById("averageChests").textContent =
-    count ? Math.round(total / count) : "0";
-
-  const history = document.getElementById("roundHistory");
-  if (!count) {
-    history.innerHTML = `
-      <div class="empty-history">
-        No saved rounds yet. Start counting your chests!
-      </div>
-    `;
-  } else {
-    history.innerHTML = [...pirateData.history]
-      .reverse()
-      .map((round, index) => `
-        <div class="history-row">
-          <span>Round ${count - index}</span>
-          <strong>${round.chests} Chests</strong>
-          <small>${round.date}</small>
-        </div>
-      `)
-      .join("");
-  }
-}
-
-function updateGroupCalculator() {
-  const players = Number(
-    document.getElementById("groupSize").value
-  );
-
-  const perPlayer = Number(
-    document.getElementById("chestsPerPlayer").value
-  );
-
-  const result =
-    Number.isFinite(perPlayer) && perPlayer >= 0
-      ? players * perPlayer
-      : 0;
-
-  document.getElementById("groupResult").textContent =
-    Math.round(result).toLocaleString("de-DE");
-}
-
-// Tracker interactions
-content.addEventListener("click", event => {
-  if (!event.target.closest("#addOne") &&
-      !event.target.closest("#addFive") &&
-      !event.target.closest("#saveRound") &&
-      !event.target.closest("#resetRound") &&
-      !event.target.closest("#clearHistory")) {
-    return;
-  }
-
-  if (event.target.closest("#addOne")) {
-    pirateData.chests += 1;
-  }
-
-  if (event.target.closest("#addFive")) {
-    pirateData.chests += 5;
-  }
-
-  if (event.target.closest("#saveRound")) {
-    if (pirateData.chests === 0) {
-      showToast("Add chests before saving!");
-      return;
-    }
-
-    pirateData.history.push({
-      chests: pirateData.chests,
-      date: new Date().toLocaleString("de-DE")
-    });
-
-    pirateData.chests = 0;
-    showToast("Round saved successfully!");
-  }
-
-  if (event.target.closest("#resetRound")) {
-    pirateData.chests = 0;
-    showToast("Current round reset");
-  }
-
-  if (event.target.closest("#clearHistory")) {
-    if (!confirm("Delete all saved rounds?")) return;
-
-    pirateData.history = [];
-    showToast("History cleared");
-  }
-
-  savePirateData();
-  updatePirateTracker();
+document.addEventListener("click", event=>{
+  const pageButton=event.target.closest("[data-page]");
+  if(pageButton){selectPage(pageButton.dataset.page);return;}
+  if(event.target.closest("#exploreButton")) selectPage("Pirate Tracker");
 });
-
-// Calculator interactions
-content.addEventListener("input", event => {
-  if (
-    event.target.id === "groupSize" ||
-    event.target.id === "chestsPerPlayer"
-  ) {
-    updateGroupCalculator();
-  }
-});
-
-content.addEventListener("change", event => {
-  if (event.target.id === "groupSize") {
-    updateGroupCalculator();
-  }
-});
+document.getElementById("menuToggle").addEventListener("click",()=>sidebar.classList.toggle("open"));
+document.getElementById("profileButton").addEventListener("click",()=>showToast("Profilbereich – weitere Funktionen folgen."));
+document.querySelector(".brand").addEventListener("click",event=>{event.preventDefault();selectPage("Dashboard");});
+updateDate();
