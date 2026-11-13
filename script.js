@@ -604,7 +604,6 @@ document.addEventListener("click", event=>{
 });
 document.getElementById("menuToggle").addEventListener("click",()=>sidebar.classList.toggle("open"));
 document.getElementById("profileButton").addEventListener("click",openLocalProfile);
-refreshProfileAvatar();
 document.querySelector(".brand").addEventListener("click",event=>{event.preventDefault();selectPage("Dashboard");});
 // Datum wird erst nach der Sprachinitialisierung gesetzt.
 
@@ -742,6 +741,10 @@ function renderSettings(){
   document.getElementById('siteLanguage').addEventListener('change',e=>setSiteLanguage(e.target.value));
   translateUi(content);
 }
+refreshProfileAvatar();
 translateUi(document.body);
-// Erst nach der Initialisierung von currentLanguage aufrufen.
+// Dashboard beim ersten Seitenaufruf genauso initialisieren wie bei einem Klick auf Dashboard.
+// Alle Render-Funktionen, das Profil und die Sprachsteuerung sind an dieser Stelle definiert.
+selectPage("Dashboard");
+translateUi(document.body);
 updateDate();
