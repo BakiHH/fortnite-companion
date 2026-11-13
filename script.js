@@ -533,7 +533,8 @@ function normalizeWeapon(item){
  const name=weaponPick(item,["name","displayName","title","id"]);
  if(typeof name!=="string"||!name.trim())return null;
  const category=weaponPick(item,["category","weaponType","type"])||"Other";
- const rarity=weaponPick(item,["rarity","tier"])||"Unknown";
+ const rawRarity=weaponPick(item,["rarity","tier"]);
+ const rarity=typeof rawRarity==="object"?(rawRarity?.name||rawRarity?.value||"Unknown"):(rawRarity||"Unknown");
  const damage=weaponNumber(weaponPick(stats,["damage","baseDamage","damageClose","damageAtCloseRange","damageBody","damagePerShot","bodyDamage"]));
  const rate=weaponNumber(weaponPick(stats,["firingRate","fireRate","rateOfFire","shotsPerSecond"]));
  const dps=weaponNumber(weaponPick(stats,["damagePerSecond","dps"]));
@@ -577,13 +578,30 @@ const WEAPON_RARITIES=[
  {id:"epic",de:"Episch",en:"Epic",stars:4,aliases:["epic","episch","purple","tier4","4"]},
  {id:"legendary",de:"Legendär",en:"Legendary",stars:5,aliases:["legendary","legendär","orange","tier5","5"]},
  {id:"mythic",de:"Mythisch",en:"Mythic",stars:6,aliases:["mythic","mythisch","tier6","6"]},
- {id:"exotic",de:"Exotisch / Hervorragend",en:"Exotic / Special",stars:0,aliases:["exotic","exotisch","transcendent","marvel","dc","special","hervorragend"]}
+ {id:"exotic",de:"Exotisch / Hervorragend",en:"Exotic / Special",stars:0,aliases:["exotic","exotisch","transcendent","hervorragend"]}
 ];
 function weaponRarity(raw){
  const value=String(raw??"").trim().toLocaleLowerCase().replace(/[\s_-]/g,"");
  return WEAPON_RARITIES.find(r=>r.aliases.some(a=>a.replace(/[\s_-]/g,"")===value))||null;
 }
 function weaponRarityLabel(r){return r?(currentLanguage==="en"?r.en:r.de):"";}
+const WEAPON_TYPE_NAMES={
+ "Assault":["Sturmgewehr","Assault rifle"],"Assault Rifle":["Sturmgewehr","Assault rifle"],
+ "Bow":["Bogen","Bow"],"Crossbow":["Armbrust","Crossbow"],
+ "DMR":["Präzisionsgewehr (DMR)","DMR"],
+ "Grenade":["Granate","Grenade"],"Heavy":["Schwere Waffe","Heavy weapon"],
+ "Launcher":["Werfer","Launcher"],"LMG":["Leichtes Maschinengewehr","LMG"],
+ "Minigun":["Minigun","Minigun"],"Pistol":["Pistole","Pistol"],
+ "Shotgun":["Schrotflinte","Shotgun"],"SMG":["Maschinenpistole","SMG"],
+ "Sniper":["Scharfschützengewehr","Sniper rifle"],
+ "Explosive":["Explosivwaffe","Explosive"],"Melee":["Nahkampfwaffe","Melee"],
+ "Other":["Sonstige","Other"],"Rifle":["Gewehr","Rifle"],
+ "FortWeaponRangedItemDefinition":["Fernkampfwaffe","Ranged weapon"]
+};
+function weaponTypeLabel(type){
+ const names=WEAPON_TYPE_NAMES[String(type)]||null;
+ return names?names[currentLanguage==="en"?1:0]:String(type).replace(/^FortWeapon/,"").replace(/ItemDefinition$/,"")||weaponT("Sonstige","Other");
+}
 function weaponT(de,en){return currentLanguage==="en"?en:de;}
 function renderWeaponDatabase(){
  const token=++weaponViewToken;
@@ -594,7 +612,7 @@ function renderWeaponDatabase(){
  <select id="weaponCategory" aria-label="${tr("Waffentyp","Weapon type")}"><option value="">${tr("Alle Waffentypen","All weapon types")}</option></select>
  <select id="weaponRarity" aria-label="${tr("Seltenheit","Rarity")}"><option value="">${tr("Alle Seltenheiten","All rarities")}</option></select>
  <select id="weaponSort" aria-label="${tr("Sortierung","Sort by")}"><option value="name">${tr("Name","Name")}</option><option value="damage">${tr("Schaden ↓","Damage ↓")}</option><option value="dps">DPS ↓</option><option value="fire">${tr("Feuerrate ↓","Fire rate ↓")}</option></select></div>
- <div class="weapon-rarity-guide" id="weaponRarityGuide"></div><p class="weapon-count" id="weaponCount"></p><div class="weapon-grid" id="weaponGrid"></div>
+ <p class="weapon-count" id="weaponCount"></p><div class="weapon-grid" id="weaponGrid"></div>
  <p class="weapon-footnote">${tr("Die API enthält auch ältere und derzeit nicht verfügbare Waffen. Die Anzeige ist kein bestätigter aktueller Loot-Pool. Fehlende Werte werden als „–“ angezeigt. DPS kann bei Schrotflinten/Mehrfachprojektilen anders berechnet werden.","The API also includes older and currently unavailable weapons. This is not a confirmed current loot pool. Missing stats show as “–”. DPS may be calculated differently for shotguns/multi-projectile weapons.")}</p>
  <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
  for(const id of ["weaponSearch","weaponCategory","weaponRarity","weaponSort"])
@@ -619,13 +637,10 @@ function refreshWeaponControls(){
  const cat=document.getElementById("weaponCategory"),rare=document.getElementById("weaponRarity");
  const oldCat=cat.value,oldRare=rare.value;
  const categories=[...new Set(weaponData.filter(w=>weaponRarity(w.rarity)).map(w=>w.category))].sort((a,b)=>a.localeCompare(b));
- cat.replaceChildren(new Option(tr("Alle Waffentypen","All weapon types"),""),...categories.map(v=>new Option(v,v)));
+ cat.replaceChildren(new Option(tr("Alle Waffentypen","All weapon types"),""),...categories.map(v=>new Option(weaponTypeLabel(v),v)));
  if(categories.includes(oldCat))cat.value=oldCat;
- const active=WEAPON_RARITIES.filter(r=>weaponData.some(w=>weaponRarity(w.rarity)?.id===r.id));
- rare.replaceChildren(new Option(tr("Alle Seltenheiten","All rarities"),""),...active.map(r=>new Option(weaponRarityLabel(r)+(r.stars?` (${r.stars} ★)`:""),r.id)));
- if(active.some(r=>r.id===oldRare))rare.value=oldRare;
- const guide=document.getElementById("weaponRarityGuide");
- if(guide)guide.innerHTML=WEAPON_RARITIES.map(r=>`<span class="weapon-rarity weapon-${r.id}">${weaponRarityLabel(r)} ${r.stars?`<span aria-label="${r.stars} Sterne">${"★".repeat(r.stars)}</span>`:"✦"}</span>`).join("");
+ rare.replaceChildren(new Option(tr("Alle Seltenheiten","All rarities"),""),...WEAPON_RARITIES.map(r=>new Option(weaponRarityLabel(r)+(r.stars?` (${r.stars} ★)`:""),r.id)));
+ if(WEAPON_RARITIES.some(r=>r.id===oldRare))rare.value=oldRare;
 }
 function showWeaponStatus(failed=false){
  const el=document.getElementById("weaponStatus");if(!el)return;
@@ -645,10 +660,10 @@ function updateWeaponResults(){
  const q=document.getElementById("weaponSearch").value.trim().toLocaleLowerCase();
  const category=document.getElementById("weaponCategory").value,rarity=document.getElementById("weaponRarity").value,sort=document.getElementById("weaponSort").value;
  const fmt=n=>n===null||n===undefined?"–":new Intl.NumberFormat(en?"en-US":"de-DE",{maximumFractionDigits:2}).format(n);
- const matches=weaponData.filter(w=>{const r=weaponRarity(w.rarity);return r&&(!category||w.category===category)&&(!rarity||r.id===rarity)&&(!q||(w.name+" "+w.category+" "+w.rarity+" "+weaponRarityLabel(r)).toLocaleLowerCase().includes(q));});
+ const matches=weaponData.filter(w=>{const r=weaponRarity(w.rarity);return r&&(!category||w.category===category)&&(!rarity||r.id===rarity)&&(!q||(w.name+" "+w.category+" "+weaponTypeLabel(w.category)+" "+w.rarity+" "+weaponRarityLabel(r)+" "+r.en+" "+r.de).toLocaleLowerCase().includes(q));});
  matches.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):((b[sort==="damage"?"damage":sort==="dps"?"dps":"rate"]??-1)-(a[sort==="damage"?"damage":sort==="dps"?"dps":"rate"]??-1)));
  document.getElementById("weaponCount").textContent=`${matches.length} ${tr("Waffen","weapons")}`;
- grid.innerHTML=matches.length?matches.slice(0,250).map(w=>`<article class="weapon-card"><div class="weapon-card-head"><div><span class="weapon-type">${escapeHTML(w.category)}</span><h2>${escapeHTML(w.name)}</h2></div><span class="weapon-rarity weapon-${weaponRarity(w.rarity).id}">${weaponRarityLabel(weaponRarity(w.rarity))}<span class="weapon-stars">${weaponRarity(w.rarity).stars?"★".repeat(weaponRarity(w.rarity).stars):"✦"}</span></span></div>
+ grid.innerHTML=matches.length?matches.slice(0,250).map(w=>`<article class="weapon-card"><div class="weapon-card-head"><div><span class="weapon-type">${escapeHTML(weaponTypeLabel(w.category))}</span><h2>${escapeHTML(w.name)}</h2></div><span class="weapon-rarity weapon-${weaponRarity(w.rarity).id}">${weaponRarityLabel(weaponRarity(w.rarity))}<span class="weapon-stars">${weaponRarity(w.rarity).stars?"★".repeat(weaponRarity(w.rarity).stars):"✦"}</span></span></div>
  ${w.icon?`<img class="weapon-icon" loading="lazy" src="${escapeHTML(w.icon)}" alt="">`:""}
  <div class="weapon-metrics">
  <div><small>${tr("Körperschaden","Body damage")}</small><strong>${fmt(w.damage)}</strong></div>
