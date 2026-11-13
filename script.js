@@ -22,7 +22,8 @@ function updateDate(){
 }
 function setActivePage(page){
   document.querySelectorAll(".nav-item[data-page]").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page));
-  pageTitle.textContent = page === "Settings" ? (typeof currentLanguage !== "undefined" && currentLanguage === "en" ? "Language" : "Sprache") : page;
+  pageTitle.textContent = page === "Sprites" ? (typeof currentLanguage!=="undefined"&&currentLanguage==="en"?"Sprites":"Geister") : page === "Settings" ? (typeof currentLanguage !== "undefined" && currentLanguage === "en" ? "Language" : "Sprache") : page;
+  const spriteNav=document.querySelector('[data-page="Sprites"]');if(spriteNav)spriteNav.innerHTML='<span>✦</span> '+(typeof currentLanguage!=="undefined"&&currentLanguage==="en"?"Sprites":"Geister");
   sidebar.classList.remove("open");
 }
 function selectPage(page){
@@ -33,6 +34,7 @@ function selectPage(page){
   if(page === "Player Stats"){ renderPlayerStats(); return; }
   if(page === "Interactive Map"){ renderInteractiveMap(); return; }
   if(page === "Weapon Database"){ renderWeaponDatabase(); return; }
+  if(page === "Sprites"){ renderSpritesTracker(); return; }
   if(page === "News & Updates"){ renderFortniteNews(); return; }
   if(page === "Settings"){ renderSettings(); return; }
   renderPlaceholder(page);
@@ -1001,3 +1003,92 @@ translateUi(document.body);
 selectPage("Dashboard");
 translateUi(document.body);
 updateDate();
+
+
+// Season-spezifische, lokale Sammlung. Kein Login, keine automatische Rücksetzung.
+const SPRITE_SEASON="c7ms_treasure_hunters_2026";
+const SPRITE_ROSTER=[
+ "Halfpeel'd","Re-Pete","Barry O'Fish","Chester","Exmarks","Wayfinder","Kelper","Sweet Dreams","Lil' Squibbly","Lil' Flacko","Plundarrgh","Transponder Snail","Lil' Uzi Vert Jr."
+];
+const SPRITE_FINISHES=["Fortune","Cursed"];
+function spriteCollectionKey(){return "fc_sprite_owned_"+SPRITE_SEASON;}
+function loadSpriteOwned(){try{const v=JSON.parse(localStorage.getItem(spriteCollectionKey())||"{}");return v&&typeof v==="object"?v:{};}catch{return {};}}
+function spriteItems(){
+ const base=SPRITE_ROSTER.map(n=>({id:n,name:n,finish:"Base"}));
+ for(const finish of SPRITE_FINISHES){for(const name of ["Halfpeel'd","Re-Pete","Barry O'Fish","Chester","Exmarks","Wayfinder","Kelper","Lil' Squibbly","Lil' Flacko","Plundarrgh","Wayfinder","Lil' Uzi Vert Jr."]){
+  if(!base.some(x=>x.id===finish+" "+name))base.push({id:finish+" "+name,name:finish+" "+name,finish});
+ }}
+ return base;
+}
+// Live data comes from extracted Fortnite game assets, not third-party gallery images.
+// The endpoint provides live enabled status, artwork, variants and library IDs.
+let spriteLiveCache=null;
+const SPRITE_LIVE_TTL=60*60*1000;
+function spriteSafe(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function spriteImageUrl(v){
+ if(!v)return "";
+ if(typeof v==="object")v=v.url||v.src||v.image||v.icon||v.full||v.small||v.path||"";
+ if(typeof v!=="string")return "";
+ if(v.startsWith("/"))v="https://prod.fn-api.cc"+v;
+ try{const u=new URL(v);return u.protocol==="https:"?u.href:"";}catch{return "";}
+}
+function spriteArt(v){return spriteImageUrl(v?.artwork||v?.image||v?.icon||v?.portrait||v?.images?.icon||v?.images?.portrait||v?.images?.artwork||v?.assets?.icon||v?.assets?.image);}
+function spriteLiveEntries(payload){
+ const list=Array.isArray(payload)?payload:(payload?.sprites||payload?.items||payload?.data?.sprites||payload?.data?.items||payload?.data||payload?.results||[]);
+ if(!Array.isArray(list))throw Error("Unknown sprite catalogue format");
+ const result=[];
+ for(const item of list){
+  if(!item||typeof item!=="object"||item.enabled===false)continue;
+  const name=String(item.displayName||item.name||item.title||item.id||"").trim();
+  if(!name)continue;
+  const baseId=String(item.id||item.mappingId||name),library=String(item.library||item.libraryId||item.spriteLibrary||"");
+  const variants=Array.isArray(item.variants)?item.variants:[];
+  if(variants.length){
+   for(const v of variants){
+    if(!v||v.enabled===false)continue;
+    const variantName=String(v.variant||v.finish||v.type||v.name||"Base");
+    const finish=/fortune/i.test(variantName)?"Fortune":/cursed/i.test(variantName)?"Cursed":/gold/i.test(variantName)?"Gold":/base|normal|default/i.test(variantName)?"Base":variantName;
+    result.push({id:baseId+"::"+String(v.id||finish),legacyId:finish==="Base"?name:finish+" "+name,name:finish==="Base"?name:finish+" "+name,finish,art:spriteArt(v)||spriteArt(item),library});
+   }
+  }else{
+   result.push({id:baseId+"::Base",legacyId:name,name,finish:"Base",art:spriteArt(item),library});
+  }
+ }
+ return result;
+}
+async function fetchSpriteLive(){
+ const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),16000);
+ try{
+  const r=await fetch("https://prod.fn-api.cc/v1/sprites?enabled=true",{signal:ctrl.signal});
+  if(!r.ok)throw Error("Sprite API HTTP "+r.status);
+  const entries=spriteLiveEntries(await r.json());
+  if(!entries.length)throw Error("Empty live sprite list");
+  return entries;
+ }finally{clearTimeout(timeout);}
+}
+function renderSpritesTracker(){
+ const en=currentLanguage==="en",tr=(de,english)=>en?english:de;
+ const owned=loadSpriteOwned();
+ const fallback=spriteItems().map(x=>({...x,legacyId:x.id,art:"",library:""}));
+ let items=fallback;
+ content.innerHTML=`<div class="page-header"><div class="eyebrow">FORTNITE · SPRITES</div><h1>${tr("Geister","Sprites")}</h1><p>${tr("Aktuell verfügbare Geister mit Bildern aus den Fortnite-Spieldaten. Fortschritt wird lokal gespeichert.","Currently enabled Sprites with artwork from Fortnite game data. Progress is saved locally.")}</p></div>
+ <div class="weapon-notice" id="spriteLiveStatus" role="status">${tr("Lade aktuelle Geister …","Loading current Sprites …")}</div>
+ <div class="sprite-toolbar"><div><strong id="spriteProgress">0 / 0</strong><div class="sprite-meter"><span id="spriteMeterFill"></span></div></div><input id="spriteSearch" type="search" placeholder="${tr("Geist suchen …","Search Sprites …")}" aria-label="${tr("Geist suchen","Search Sprites")}"><select id="spriteFinish"><option value="">${tr("Alle Varianten","All variants")}</option><option value="Base">Base</option><option value="Fortune">Fortune</option><option value="Cursed">Cursed</option><option value="Gold">Gold</option></select><select id="spriteOwnedFilter"><option value="">${tr("Alle anzeigen","Show all")}</option><option value="owned">${tr("Erhalten","Owned")}</option><option value="missing">${tr("Fehlen noch","Missing")}</option></select></div>
+ <div class="sprite-grid" id="spriteGrid"></div><p class="weapon-footnote">${tr("Quelle: FN Api (inoffizielle Spieldaten). Nur als aktiviert gemeldete Geister. Falls die API keine Bilder liefert, erscheint ein Platzhalter. Die Zuordnung zu einer konkreten Season hängt von den API-Metadaten ab.","Source: FN Api (unofficial game data). Only reported enabled Sprites. Missing artwork displays a placeholder. Exact season classification depends on API metadata.")}</p>
+ `;
+ function draw(){
+  const search=document.getElementById("spriteSearch"),grid=document.getElementById("spriteGrid");if(!grid)return;
+  const query=search.value.trim().toLowerCase(),finish=document.getElementById("spriteFinish").value,filter=document.getElementById("spriteOwnedFilter").value;
+  const filtered=items.filter(x=>x.name.toLowerCase().includes(query)&&(!finish||x.finish===finish)&&(!filter||(filter==="owned"?!!(owned[x.id]||owned[x.legacyId]):!(owned[x.id]||owned[x.legacyId]))));
+  grid.innerHTML=filtered.map(x=>`<article class="sprite-card ${(owned[x.id]||owned[x.legacyId])?"is-owned":""}"><div class="sprite-card-art">${x.art?`<img src="${spriteSafe(x.art)}" alt="${spriteSafe(x.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="sprite-art-fallback" style="display:none">✦</span>`:`<span class="sprite-art-fallback">✦</span>`}</div><div class="sprite-card-copy"><small>${spriteSafe(x.finish)}</small><h3>${spriteSafe(x.name)}</h3><label class="sprite-check"><input type="checkbox" data-sprite="${spriteSafe(x.id)}" ${(owned[x.id]||owned[x.legacyId])?"checked":""}> ${tr("Erhalten","Owned")}</label></div></article>`).join("")||`<p>${tr("Keine passenden Geister gefunden.","No matching Sprites found.")}</p>`;
+  const count=items.filter(x=>owned[x.id]||owned[x.legacyId]).length;
+  document.getElementById("spriteProgress").textContent=count+" / "+items.length+" "+tr("erhalten","owned");
+  document.getElementById("spriteMeterFill").style.width=(items.length?count/items.length*100:0)+"%";
+  grid.querySelectorAll("[data-sprite]").forEach(el=>el.addEventListener("change",()=>{owned[el.dataset.sprite]=el.checked;try{localStorage.setItem(spriteCollectionKey(),JSON.stringify(owned));}catch{}draw();}));
+ }
+ for(const id of ["spriteSearch","spriteFinish","spriteOwnedFilter"])document.getElementById(id).addEventListener(id==="spriteSearch"?"input":"change",draw);
+ const status=document.getElementById("spriteLiveStatus");
+ if(spriteLiveCache&&Date.now()-spriteLiveCache.saved<SPRITE_LIVE_TTL){items=spriteLiveCache.items;status.textContent=tr("Aktuelle Spieldaten (Zwischenspeicher)","Current game data (cached)");draw();return;}
+ items=[];draw();
+ fetchSpriteLive().then(live=>{if(!document.getElementById("spriteGrid"))return;items=live;spriteLiveCache={saved:Date.now(),items:live};status.textContent=tr("Aktive Geister geladen: ","Enabled Sprites loaded: ")+live.length;draw();}).catch(()=>{if(!document.getElementById("spriteGrid"))return;items=[];status.textContent=tr("Live-Daten momentan nicht verfügbar. Es werden keine alten Geister als aktuell ausgegeben.","Live data unavailable. Old Sprites are not presented as current.");draw();});
+}
