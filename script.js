@@ -32,6 +32,7 @@ function selectPage(page){
   if(page === "Item Shop"){ renderItemShop(); return; }
   if(page === "Player Stats"){ renderPlayerStats(); return; }
   if(page === "Interactive Map"){ renderInteractiveMap(); return; }
+  if(page === "Weapon Database"){ renderWeaponDatabase(); return; }
   if(page === "Settings"){ renderSettings(); return; }
   renderPlaceholder(page);
 }
@@ -505,6 +506,141 @@ async function mapImportCustom(event){const file=event.target.files?.[0];event.t
   }catch{showToast('Ungültige Marker-Datei');}
 }
 
+
+// FN Api: kostenlose öffentliche API, kein Schlüssel nötig. Lokaler Archiv-Fallback.
+const WEAPON_API="https://prod.fn-api.cc/v1/weapons";
+const WEAPON_CACHE_KEY="fc_weapon_live_cache_v1";
+const WEAPON_CACHE_TTL=6*60*60*1000;
+const WEAPON_ARCHIVE=[
+ ["Assault Rifle","Sturmgewehr","Assault","Legendary",36,55.8,5.5,25,2.16],
+ ["Ranger Assault Rifle","Ranger-Sturmgewehr","Assault","Legendary",45,76.5,3.65,22,2.12],
+ ["Tactical Pistol","Taktische Pistole","Pistol","Legendary",30,60,6.9,15,1.3],
+ ["Pump Shotgun","Pumpgun","Shotgun","Legendary",116,205,0.7,5,3.78],
+ ["Drum Gun","Trommel-MP","SMG","Legendary",23,34.5,9,34,2.7]
+];
+let weaponViewToken=0;
+let weaponData=[];
+let weaponState="archive";
+let weaponUpdated=null;
+const weaponNumber=v=>typeof v==="number"&&Number.isFinite(v)?v:(typeof v==="string"&&v.trim()!==""&&Number.isFinite(Number(v))?Number(v):null);
+function weaponPick(obj,keys){
+ for(const key of keys){const parts=key.split(".");let value=obj;for(const part of parts)value=value?.[part];if(value!==undefined&&value!==null)return value;}
+ return null;
+}
+function normalizeWeapon(item){
+ if(!item||typeof item!=="object")return null;
+ const stats=item.stats||item.statistics||{};
+ const name=weaponPick(item,["name","displayName","title","id"]);
+ if(typeof name!=="string"||!name.trim())return null;
+ const category=weaponPick(item,["category","weaponType","type"])||"Other";
+ const rarity=weaponPick(item,["rarity","tier"])||"Unknown";
+ const damage=weaponNumber(weaponPick(stats,["damage","baseDamage","damageClose","damageAtCloseRange","damageBody","damagePerShot","bodyDamage"]));
+ const rate=weaponNumber(weaponPick(stats,["firingRate","fireRate","rateOfFire","shotsPerSecond"]));
+ const dps=weaponNumber(weaponPick(stats,["damagePerSecond","dps"]));
+ const head=weaponNumber(weaponPick(stats,["headshotDamage","damageHeadshot"]));
+ const multiplier=weaponNumber(weaponPick(stats,["headshotMultiplier","criticalHitMultiplier"]));
+ const magazine=weaponNumber(weaponPick(stats,["clipSize","magazineSize","magazine","bulletsPerClip"]));
+ const reload=weaponNumber(weaponPick(stats,["reloadTime","reloadSeconds","reloadDuration"]));
+ const icon=weaponPick(item,["images.icon","images.smallIcon","icon","image","images.largeIcon"]);
+ return {id:String(item.id||name),name,category:String(category),rarity:String(rarity),damage,head:head??(damage!==null&&multiplier!==null?damage*multiplier:null),rate,magazine,reload,dps:dps??(damage!==null&&rate!==null?damage*rate:null),icon:typeof icon==="string"&&icon.startsWith("https://")?icon:null};
+}
+function archivedWeapons(){
+ return WEAPON_ARCHIVE.map(w=>({id:w[0],name:w[0],category:w[2],rarity:w[3],damage:w[4],head:w[5],rate:w[6],magazine:w[7],reload:w[8],dps:w[4]*w[6],icon:null}));
+}
+function getWeaponCache(){
+ try{const c=JSON.parse(localStorage.getItem(WEAPON_CACHE_KEY));return c&&Array.isArray(c.items)&&c.items.length&&typeof c.saved==="number"?c:null;}catch{return null;}
+}
+async function fetchWeaponPages(){
+ const all=[];const limit=500;
+ for(let offset=0;offset<5000;offset+=limit){
+  const params=new URLSearchParams({ranged:"true",hasStats:"true",limit:String(limit),offset:String(offset)});
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),14000);
+  let response;
+  try{response=await fetch(`${WEAPON_API}?${params}`,{signal:controller.signal,headers:{"Accept":"application/json"}});}
+  finally{clearTimeout(timeout);}
+  if(!response.ok)throw new Error(`API HTTP ${response.status}`);
+  const body=await response.json();
+  const entries=Array.isArray(body)?body:(Array.isArray(body.items)?body.items:Array.isArray(body.weapons)?body.weapons:Array.isArray(body.data)?body.data:Array.isArray(body.results)?body.results:null);
+  if(!entries)throw new Error("Unbekanntes API-Datenformat");
+  all.push(...entries);
+  const total=weaponNumber(body.total??body.pagination?.total);
+  if(entries.length<limit||(total!==null&&all.length>=total))break;
+ }
+ const result=all.map(normalizeWeapon).filter(Boolean);
+ if(!result.length)throw new Error("Keine Waffen gefunden");
+ return result;
+}
+function weaponT(de,en){return currentLanguage==="en"?en:de;}
+function renderWeaponDatabase(){
+ const token=++weaponViewToken;
+ const tr=weaponT;
+ content.innerHTML=`<div class="page-header"><div class="eyebrow">${tr("FORTNITE WAFFEN","FORTNITE WEAPONS")}</div><h1>${tr("Waffendatenbank","Weapon Database")}</h1><p>${tr("Waffenwerte direkt aus den Fortnite-Spieldaten.","Weapon stats directly from Fortnite game data.")}</p></div>
+ <div class="weapon-notice" id="weaponStatus" role="status" aria-live="polite">${tr("Lade Waffendaten …","Loading weapon data …")}</div>
+ <div class="weapon-controls"><input id="weaponSearch" type="search" placeholder="${tr("Waffe suchen …","Search weapons …")}" aria-label="${tr("Waffe suchen","Search weapons")}">
+ <select id="weaponCategory" aria-label="${tr("Waffentyp","Weapon type")}"><option value="">${tr("Alle Waffentypen","All weapon types")}</option></select>
+ <select id="weaponRarity" aria-label="${tr("Seltenheit","Rarity")}"><option value="">${tr("Alle Seltenheiten","All rarities")}</option></select>
+ <select id="weaponSort" aria-label="${tr("Sortierung","Sort by")}"><option value="name">${tr("Name","Name")}</option><option value="damage">${tr("Schaden ↓","Damage ↓")}</option><option value="dps">DPS ↓</option><option value="fire">${tr("Feuerrate ↓","Fire rate ↓")}</option></select></div>
+ <p class="weapon-count" id="weaponCount"></p><div class="weapon-grid" id="weaponGrid"></div>
+ <p class="weapon-footnote">${tr("Die API enthält auch ältere und derzeit nicht verfügbare Waffen. Die Anzeige ist kein bestätigter aktueller Loot-Pool. Fehlende Werte werden als „–“ angezeigt. DPS kann bei Schrotflinten/Mehrfachprojektilen anders berechnet werden.","The API also includes older and currently unavailable weapons. This is not a confirmed current loot pool. Missing stats show as “–”. DPS may be calculated differently for shotguns/multi-projectile weapons.")}</p>
+ <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
+ for(const id of ["weaponSearch","weaponCategory","weaponRarity","weaponSort"])
+  document.getElementById(id).addEventListener(id==="weaponSearch"?"input":"change",updateWeaponResults);
+ const cache=getWeaponCache();
+ weaponData=cache?cache.items:archivedWeapons();
+ weaponState=cache?"cache":"archive";weaponUpdated=cache?.saved||null;
+ refreshWeaponControls();showWeaponStatus();updateWeaponResults();
+ if(cache&&Date.now()-cache.saved<WEAPON_CACHE_TTL)return;
+ fetchWeaponPages().then(items=>{
+  if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
+  weaponData=items;weaponState="live";weaponUpdated=Date.now();
+  try{localStorage.setItem(WEAPON_CACHE_KEY,JSON.stringify({saved:weaponUpdated,items}));}catch{}
+  refreshWeaponControls();showWeaponStatus();updateWeaponResults();
+ }).catch(()=>{
+  if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
+  showWeaponStatus(true);
+ });
+}
+function refreshWeaponControls(){
+ const tr=weaponT;
+ for(const [id,key,label] of [["weaponCategory","category",tr("Alle Waffentypen","All weapon types")],["weaponRarity","rarity",tr("Alle Seltenheiten","All rarities")]]){
+  const el=document.getElementById(id);const previous=el.value;
+  const values=[...new Set(weaponData.map(w=>w[key]))].sort((a,b)=>a.localeCompare(b));
+  el.replaceChildren(new Option(label,""),...values.map(v=>new Option(v,v)));
+  if(values.includes(previous))el.value=previous;
+ }
+}
+function showWeaponStatus(failed=false){
+ const el=document.getElementById("weaponStatus");if(!el)return;
+ const tr=weaponT;let msg;
+ if(weaponState==="archive")msg=tr("Archivdaten als Notlösung (Stand: September 2026). Keine Live-Daten.","Archive fallback (September 2026). Not live data.");
+ else msg=`${weaponState==="live"?tr("Live-API geladen","Live API loaded"):tr("Gespeicherte API-Daten","Cached API data")} · ${new Date(weaponUpdated).toLocaleString(currentLanguage==="en"?"en-GB":"de-DE")}`;
+ if(failed)msg+=" · "+tr("Aktualisierung fehlgeschlagen. Gespeicherte Daten werden angezeigt.","Refresh failed. Showing saved data.");
+ el.innerHTML=`<strong>${escapeHTML(msg)}</strong><p>${tr("Quelle:","Source:")} <a href="https://fn-api.cc/docs" target="_blank" rel="noopener noreferrer">FN Api</a> · ${tr("Kostenlos, ohne Anmeldung","Free, no sign-up")}</p><button type="button" id="weaponRefresh" class="weapon-refresh">${tr("Jetzt aktualisieren","Refresh now")}</button>`;
+ document.getElementById("weaponRefresh").addEventListener("click",()=>{
+  try{localStorage.removeItem(WEAPON_CACHE_KEY);}catch{}
+  renderWeaponDatabase();
+ });
+}
+function updateWeaponResults(){
+ const grid=document.getElementById("weaponGrid");if(!grid)return;
+ const tr=weaponT;const en=currentLanguage==="en";
+ const q=document.getElementById("weaponSearch").value.trim().toLocaleLowerCase();
+ const category=document.getElementById("weaponCategory").value,rarity=document.getElementById("weaponRarity").value,sort=document.getElementById("weaponSort").value;
+ const fmt=n=>n===null||n===undefined?"–":new Intl.NumberFormat(en?"en-US":"de-DE",{maximumFractionDigits:2}).format(n);
+ const matches=weaponData.filter(w=>(!category||w.category===category)&&(!rarity||w.rarity===rarity)&&(!q||(w.name+" "+w.category+" "+w.rarity).toLocaleLowerCase().includes(q)));
+ matches.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):((b[sort==="damage"?"damage":sort==="dps"?"dps":"rate"]??-1)-(a[sort==="damage"?"damage":sort==="dps"?"dps":"rate"]??-1)));
+ document.getElementById("weaponCount").textContent=`${matches.length} ${tr("Waffen","weapons")}`;
+ grid.innerHTML=matches.length?matches.slice(0,250).map(w=>`<article class="weapon-card"><div class="weapon-card-head"><div><span class="weapon-type">${escapeHTML(w.category)}</span><h2>${escapeHTML(w.name)}</h2></div><span class="weapon-rarity weapon-${escapeHTML(w.rarity.toLowerCase())}">${escapeHTML(w.rarity)}</span></div>
+ ${w.icon?`<img class="weapon-icon" loading="lazy" src="${escapeHTML(w.icon)}" alt="">`:""}
+ <div class="weapon-metrics">
+ <div><small>${tr("Körperschaden","Body damage")}</small><strong>${fmt(w.damage)}</strong></div>
+ <div><small>${tr("Kopfschaden","Headshot")}</small><strong>${fmt(w.head)}</strong></div>
+ <div><small>DPS</small><strong>${fmt(w.dps)}</strong></div>
+ <div><small>${tr("Feuerrate / Sek.","Fire rate / sec")}</small><strong>${fmt(w.rate)}</strong></div>
+ <div><small>${tr("Magazingröße","Magazine")}</small><strong>${fmt(w.magazine)}</strong></div>
+ <div><small>${tr("Nachladen","Reload")}</small><strong>${fmt(w.reload)}${w.reload===null?"":" s"}</strong></div></div></article>`).join(""):`<div class="panel-card">${tr("Keine passenden Waffen gefunden.","No matching weapons found.")}</div>`;
+ if(matches.length>250)document.getElementById("weaponCount").textContent+=` · ${tr("250 angezeigt, Suche zum Eingrenzen nutzen","showing 250; use search to narrow down")}`;
+}
 function renderPlaceholder(page){
   const descriptions = {
     "Item Shop":"Hier entsteht eine Übersicht des aktuellen Fortnite Item Shops.",
