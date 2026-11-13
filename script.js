@@ -95,24 +95,56 @@ async function loadShop(manual){
     if(manual)showToast('Shop-Aktualisierung fehlgeschlagen.');
   }finally{if(id===shopRequestId&&document.getElementById('refreshShop'))document.getElementById('refreshShop').disabled=false;}
 }
-function shopName(entry){return entry.bundle?.name||entry.items?.map(x=>x.name).filter(Boolean).join(' + ')||'Unbekanntes Angebot';}
-function shopPrice(entry){return Number(entry.finalPrice??entry.regularPrice??entry.items?.[0]?.price?.final??0);}
+function shopItems(entry){
+  return [
+    ...(Array.isArray(entry.items)?entry.items:[]),
+    ...(Array.isArray(entry.br)?entry.br:[]),
+    ...(Array.isArray(entry.tracks)?entry.tracks:[]),
+    ...(Array.isArray(entry.cars)?entry.cars:[]),
+    ...(Array.isArray(entry.instruments)?entry.instruments:[]),
+    ...(Array.isArray(entry.legoKits)?entry.legoKits:[]),
+    ...(Array.isArray(entry.lego_kits)?entry.lego_kits:[])
+  ].filter(Boolean);
+}
+function shopName(entry){
+  const explicit=[entry.bundle?.name,entry.displayName,entry.name,entry.newDisplayAsset?.displayName,entry.newDisplayAsset?.name];
+  const direct=explicit.find(v=>typeof v==='string'&&v.trim());
+  if(direct)return direct.trim();
+  const items=shopItems(entry);
+  const names=[...new Set(items.map(x=>x.name||x.displayName||x.title).filter(v=>typeof v==='string'&&v.trim()))];
+  if(names.length)return names.slice(0,3).join(' + ')+(names.length>3?` + ${names.length-3} weitere`:'');
+  const dev=entry.devName||entry.offerId||entry.layout?.name||entry.section?.name;
+  return (typeof dev==='string'&&dev.trim())?dev.trim():'Angebot ohne Namen';
+}
+function shopPrice(entry){return Number(entry.finalPrice??entry.regularPrice??shopItems(entry)[0]?.price?.final??0);}
+function shopImage(entry){
+  const item=shopItems(entry)[0]||{};
+  const sources=[
+    entry.newDisplayAsset?.renderImages?.[0]?.image,
+    entry.newDisplayAsset?.renderImages?.[0]?.url,
+    entry.newDisplayAsset?.materialInstances?.[0]?.images?.OfferImage,
+    entry.bundle?.image,entry.bundle?.images?.icon,
+    item.images?.featured,item.images?.icon,item.images?.smallIcon,
+    item.albumArt,item.images?.cover,item.image,
+    entry.newDisplayAsset?.images?.icon
+  ];
+  return sources.find(v=>typeof v==='string'&&/^https:\/\//i.test(v))||'';
+}
 function displayShop(){
   const target=document.getElementById('shopResults');if(!target)return;
   const search=(document.getElementById('shopSearch')?.value||'').toLocaleLowerCase('de');
   const sort=document.getElementById('shopSort')?.value||'default';
-  let entries=shopEntries.filter(e=>(shopName(e)+' '+(e.section?.name||'')).toLocaleLowerCase('de').includes(search));
+  let entries=shopEntries.filter(e=>(shopName(e)+' '+(e.section?.name||e.layout?.name||'')).toLocaleLowerCase('de').includes(search));
   if(sort==='az')entries.sort((a,b)=>shopName(a).localeCompare(shopName(b),'de'));
   if(sort==='low')entries.sort((a,b)=>shopPrice(a)-shopPrice(b));
   if(sort==='high')entries.sort((a,b)=>shopPrice(b)-shopPrice(a));
   if(!entries.length){target.innerHTML='<div class="panel-card">Keine passenden Angebote gefunden.</div>';return;}
   const groups=new Map();
-  for(const entry of entries){const section=entry.section?.name||'Weitere Angebote';if(!groups.has(section))groups.set(section,[]);groups.get(section).push(entry);}
+  for(const entry of entries){const section=entry.layout?.name||entry.section?.name||'Weitere Angebote';if(!groups.has(section))groups.set(section,[]);groups.get(section).push(entry);}
   target.innerHTML=[...groups].map(([section,offers])=>`<section class="shop-section"><div class="shop-section-heading"><h2>${escapeHTML(section)}</h2><span>${offers.length} Angebote</span></div><div class="shop-grid">${offers.map(entry=>{
-    const item=entry.items?.[0]||{};
-    const img=entry.bundle?.image||item.images?.featured||item.images?.icon||item.images?.smallIcon||'';
-    const safeImg=typeof img==='string'&&/^https:\/\//.test(img)?escapeHTML(img):'';
-    const rarity=item.series?.name||item.rarity?.name||'Cosmetic';
+    const item=shopItems(entry)[0]||{};
+    const safeImg=escapeHTML(shopImage(entry));
+    const rarity=item.series?.name||item.rarity?.name||item.type?.displayValue||'Cosmetic';
     const price=entry.finalPrice??entry.regularPrice;
     return `<article class="shop-card"><div class="shop-art">${safeImg?`<img loading="lazy" src="${safeImg}" alt="${escapeHTML(shopName(entry))}">`:'<span>FC</span>'}</div><div class="shop-card-body"><small>${escapeHTML(rarity)}</small><h3>${escapeHTML(shopName(entry))}</h3><strong>${price==null?'Preis nicht verfügbar':Number(price).toLocaleString('de-DE')+' V-Bucks'}</strong></div></article>`;
   }).join('')}</div></section>`).join('');
