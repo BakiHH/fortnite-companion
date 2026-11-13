@@ -18,11 +18,11 @@ function showToast(message){
 }
 function updateDate(){
   const el = document.getElementById("currentDate");
-  if(el) el.textContent = new Intl.DateTimeFormat(typeof currentLanguage!=="undefined"&&currentLanguage==="en"?"en-GB":"de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date());
+  if(el) el.textContent = new Intl.DateTimeFormat(document.documentElement.lang==="en"?"en-GB":"de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date());
 }
 function setActivePage(page){
   document.querySelectorAll(".nav-item[data-page]").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page));
-  pageTitle.textContent = page === "Settings" ? "Language" : page;
+  pageTitle.textContent = page === "Settings" ? (typeof currentLanguage !== "undefined" && currentLanguage === "en" ? "Language" : "Sprache") : page;
   sidebar.classList.remove("open");
 }
 function selectPage(page){
@@ -606,7 +606,7 @@ document.getElementById("menuToggle").addEventListener("click",()=>sidebar.class
 document.getElementById("profileButton").addEventListener("click",openLocalProfile);
 refreshProfileAvatar();
 document.querySelector(".brand").addEventListener("click",event=>{event.preventDefault();selectPage("Dashboard");});
-updateDate();
+// Datum wird erst nach der Sprachinitialisierung gesetzt.
 
 
 // Lokales Spielerprofil: kein Server, keine Anmeldung, kein Passwort.
@@ -681,6 +681,7 @@ function openLocalProfile(){
   document.getElementById('profileImportButton').onclick=()=>document.getElementById('profileImportFile').click();
   document.getElementById('profileImportFile').onchange=e=>profileImport(e.target.files[0]);
   document.addEventListener('keydown',profileEscape);
+  translateUi(el);
   document.getElementById('localProfileName').focus();
 }
 
@@ -742,3 +743,5 @@ function renderSettings(){
   translateUi(content);
 }
 translateUi(document.body);
+// Erst nach der Initialisierung von currentLanguage aufrufen.
+updateDate();
