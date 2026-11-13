@@ -18,11 +18,11 @@ function showToast(message){
 }
 function updateDate(){
   const el = document.getElementById("currentDate");
-  if(el) el.textContent = new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date());
+  if(el) el.textContent = new Intl.DateTimeFormat(typeof currentLanguage!=="undefined"&&currentLanguage==="en"?"en-GB":"de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date());
 }
 function setActivePage(page){
   document.querySelectorAll(".nav-item[data-page]").forEach(btn => btn.classList.toggle("active", btn.dataset.page === page));
-  pageTitle.textContent = page;
+  pageTitle.textContent = page === "Settings" ? "Language" : page;
   sidebar.classList.remove("open");
 }
 function selectPage(page){
@@ -32,11 +32,13 @@ function selectPage(page){
   if(page === "Item Shop"){ renderItemShop(); return; }
   if(page === "Player Stats"){ renderPlayerStats(); return; }
   if(page === "Interactive Map"){ renderInteractiveMap(); return; }
+  if(page === "Settings"){ renderSettings(); return; }
   renderPlaceholder(page);
 }
 function renderDashboard(){
   content.innerHTML = `
     <div class="welcome"><div><div class="eyebrow">YOUR FORTNITE HUB</div><h1>Welcome to <span>Companion.</span></h1><p>Everything Fortnite. All in one place.</p></div><div class="date-card"><span>HEUTE</span><strong id="currentDate">--.--.----</strong></div></div>
+    <div class="dashboard-profile-notice" role="note"><div class="dashboard-profile-notice-icon"><svg class="profile-person-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg></div><div class="dashboard-profile-notice-copy"><strong>Dein Fortschritt bleibt bei dir!</strong><p>Klicke oben rechts neben <b>ONLINE</b> auf das <b>Menschen-Symbol</b>, um dein kostenloses lokales Profil einzurichten, deine Daten zu speichern und ein Backup zu erstellen. Deine Daten bleiben in diesem Browser – für andere Geräte kannst du dein Backup importieren.</p></div><button type="button" class="dashboard-profile-notice-button" id="dashboardProfileOpen">Profil öffnen →</button></div>
     <div class="hero"><div class="hero-content"><div class="hero-tag">YOUR ULTIMATE FORTNITE HUB</div><h2>Level up your<br>Fortnite experience.</h2><p>Stats, tools, loot and everything you need<br class="desktop-only"> to stay ahead of the game.</p><button class="primary-button" id="exploreButton">Explore Companion <span>→</span></button></div><div class="hero-decoration">FC</div></div>
     <div class="section-heading"><div><h2>Quick Access</h2><p>Jump straight into your favorite tools.</p></div></div>
     <div class="quick-grid">
@@ -49,6 +51,7 @@ function renderDashboard(){
     <div class="stats-grid"><div class="stat-card"><span class="stat-label">TOOLS</span><strong>06</strong><span class="stat-note">Planned modules</span></div><div class="stat-card"><span class="stat-label">GAME MODE</span><strong>ZERO BUILD</strong><span class="stat-note">Focus mode</span></div><div class="stat-card"><span class="stat-label">VERSION</span><strong>1.1.0</strong><span class="stat-note">Companion update</span></div></div>
     <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
   updateDate();
+  document.getElementById('dashboardProfileOpen')?.addEventListener('click',openLocalProfile);
 }
 
 // Der Endpoint liefert die aktuelle Shop-Rotation, keine historische Cosmetic-Datenbank.
@@ -613,9 +616,11 @@ function readLocalProfile(){
   try{const p=JSON.parse(localStorage.getItem(LOCAL_PROFILE_KEY)||'{}');return {name:typeof p.name==='string'?p.name.slice(0,32):'',icon:PROFILE_ICONS.includes(p.icon)?p.icon:'🎮'};}
   catch{return {name:'',icon:'🎮'};}
 }
+const PROFILE_PERSON_SVG = '<svg class="profile-person-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg>';
 function refreshProfileAvatar(){
   const p=readLocalProfile();const el=document.getElementById('profileInitials');
-  if(el)el.textContent=p.name?p.icon:'FC';
+  // Das Profil-Symbol bleibt bewusst ein Mensch; der gewählte Avatar bleibt im Profil gespeichert.
+  if(el)el.innerHTML=PROFILE_PERSON_SVG;
   const btn=document.getElementById('profileButton');
   if(btn)btn.title=p.name?`Lokales Profil: ${p.name}`:'Lokales Profil erstellen';
 }
@@ -678,3 +683,62 @@ function openLocalProfile(){
   document.addEventListener('keydown',profileEscape);
   document.getElementById('localProfileName').focus();
 }
+
+
+// Free, offline UI translations. No translation service or paid API.
+const LANGUAGE_KEY='fortniteCompanionLanguageV1';
+const LANGUAGES={de:'Deutsch',en:'English'};
+const UI_TRANSLATIONS={"HEUTE":{"en":"TODAY","de":"HEUTE"},"Welcome to":{"en":"Welcome to","de":"Willkommen bei"},"Everything Fortnite. All in one place.":{"en":"Everything Fortnite. All in one place.","de":"Alles zu Fortnite. An einem Ort."},"Dein Fortschritt bleibt bei dir!":{"de":"Dein Fortschritt bleibt bei dir!","en":"Your progress stays with you!"},"Klicke oben rechts neben":{"en":"Click the person icon next to","de":"Klicke oben rechts neben"},"Profil öffnen →":{"en":"Open profile →","de":"Profil öffnen →"},"YOUR ULTIMATE FORTNITE HUB":{"en":"YOUR ULTIMATE FORTNITE HUB","de":"DEIN ULTIMATIVER FORTNITE-HUB"},"Level up your":{"en":"Level up your","de":"Verbessere dein"},"Fortnite experience.":{"en":"Fortnite experience.","de":"Fortnite-Erlebnis."},"Explore Companion":{"en":"Explore Companion","de":"Companion entdecken"},"Quick Access":{"en":"Quick Access","de":"Schnellzugriff"},"Jump straight into your favorite tools.":{"en":"Jump straight into your favorite tools.","de":"Direkt zu deinen Lieblingstools."},"Track chests and treasures":{"en":"Track chests and treasures","de":"Truhen und Schätze erfassen"},"Explore cosmetics":{"en":"Explore cosmetics","de":"Kosmetische Gegenstände entdecken"},"Analyze your performance":{"en":"Analyze your performance","de":"Deine Leistung analysieren"},"Discover locations":{"en":"Discover locations","de":"Orte entdecken"},"Platform Overview":{"en":"Platform Overview","de":"Plattformüberblick"},"Your companion at a glance.":{"en":"Your companion at a glance.","de":"Dein Companion auf einen Blick."},"Planned modules":{"en":"Planned modules","de":"Geplante Module"},"Focus mode":{"en":"Focus mode","de":"Hauptspielmodus"},"Companion update":{"en":"Companion update","de":"Companion-Update"},"MAIN MENU":{"en":"MAIN MENU","de":"HAUPTMENÜ"},"DISCOVER":{"en":"DISCOVER","de":"ENTDECKEN"},"Settings":{"en":"Language","de":"Sprache"},"Dashboard":{"de":"Übersicht","en":"Dashboard"},"Weapon Database":{"en":"Weapon Database","de":"Waffendatenbank"},"News & Updates":{"de":"Neuigkeiten & Updates","en":"News & Updates"},"Fortnite Item Shop":{"en":"Fortnite Item Shop","de":"Fortnite Item-Shop"},"Alle Einträge der aktuellen Shop-Rotation – auch Angebote ohne Bild oder mit unvollständigen Metadaten.":{"en":"All offers in the current shop rotation, including offers with missing images or metadata.","de":"Alle Einträge der aktuellen Shop-Rotation – auch Angebote ohne Bild oder mit unvollständigen Metadaten."},"↻ Aktualisieren":{"en":"↻ Refresh","de":"↻ Aktualisieren"},"Shop wird geladen …":{"en":"Loading shop …","de":"Shop wird geladen …"},"Daten werden abgerufen.":{"en":"Fetching data.","de":"Daten werden abgerufen."},"Shop-Reihenfolge":{"en":"Shop order","de":"Shop-Reihenfolge"},"Name A–Z":{"en":"Name A–Z","de":"Name A–Z"},"Preis aufsteigend":{"en":"Price: low to high","de":"Preis aufsteigend"},"Preis absteigend":{"en":"Price: high to low","de":"Preis absteigend"},"Lade aktuelle Angebote …":{"en":"Loading current offers …","de":"Lade aktuelle Angebote …"},"Erfasse deine geöffneten Truhen und gefundenen Schätze und behalte deine Farm-Runden im Blick.":{"en":"Track opened chests, discovered treasures and your farming rounds.","de":"Erfasse deine geöffneten Truhen und gefundenen Schätze und behalte deine Farm-Runden im Blick."},"GESAMT GEÖFFNETE TRUHEN":{"en":"TOTAL CHESTS OPENED","de":"GESAMT GEÖFFNETE TRUHEN"},"GEFUNDENE SCHÄTZE":{"en":"TREASURES FOUND","de":"GEFUNDENE SCHÄTZE"},"GESPEICHERTE RUNDEN":{"en":"SAVED ROUNDS","de":"GESPEICHERTE RUNDEN"},"Über alle gespeicherten Runden":{"en":"Across all saved rounds","de":"Über alle gespeicherten Runden"},"Manuell erfasste Schätze":{"en":"Manually recorded treasures","de":"Manuell erfasste Schätze"},"Dein persönlicher Verlauf":{"en":"Your personal history","de":"Dein persönlicher Verlauf"},"Runde erfassen":{"en":"Record round","de":"Runde erfassen"},"Trage ein, wie viele Truhen und Schätze ihr in dieser Runde gefunden habt.":{"en":"Enter the chests and treasures found this round.","de":"Trage ein, wie viele Truhen und Schätze ihr in dieser Runde gefunden habt."},"Geöffnete Truhen":{"en":"Opened chests","de":"Geöffnete Truhen"},"Gefundene Schätze":{"en":"Treasures found","de":"Gefundene Schätze"},"Aktive Spieler":{"en":"Active players","de":"Aktive Spieler"},"1 Spieler":{"en":"1 player","de":"1 Spieler"},"2 Spieler (Duo)":{"en":"2 players (Duo)","de":"2 Spieler (Duo)"},"3 Spieler":{"en":"3 players","de":"3 Spieler"},"4 Spieler":{"en":"4 players","de":"4 Spieler"},"Runde speichern":{"en":"Save round","de":"Runde speichern"},"+1 Truhe":{"en":"+1 chest","de":"+1 Truhe"},"+5 Truhen":{"en":"+5 chests","de":"+5 Truhen"},"Deine Einträge werden lokal in diesem Browser gespeichert.":{"en":"Your entries are stored locally in this browser.","de":"Deine Einträge werden lokal in diesem Browser gespeichert."},"Gruppen-Farm-Rechner":{"en":"Group farming calculator","de":"Gruppen-Farm-Rechner"},"Berechne die erwartete Truhenmenge einer Gruppe anhand eurer durchschnittlichen Funde pro Spieler.":{"en":"Estimate group chest totals using average finds per player.","de":"Berechne die erwartete Truhenmenge einer Gruppe anhand eurer durchschnittlichen Funde pro Spieler."},"Spieler in der Gruppe":{"en":"Players in group","de":"Spieler in der Gruppe"},"Truhen pro Spieler":{"en":"Chests per player","de":"Truhen pro Spieler"},"Anzahl der Runden":{"en":"Number of rounds","de":"Anzahl der Runden"},"Rundenverlauf":{"en":"Round history","de":"Rundenverlauf"},"Deine zuletzt gespeicherten Farm-Runden.":{"en":"Your most recently saved farming rounds.","de":"Deine zuletzt gespeicherten Farm-Runden."},"DATUM":{"en":"DATE","de":"DATUM"},"TRUHEN":{"en":"CHESTS","de":"TRUHEN"},"SCHÄTZE":{"en":"TREASURES","de":"SCHÄTZE"},"SPIELER":{"en":"PLAYERS","de":"SPIELER"},"AKTION":{"en":"ACTION","de":"AKTION"},"Verlauf löschen":{"en":"Clear history","de":"Verlauf löschen"},"Noch keine Runden gespeichert.":{"en":"No rounds saved yet.","de":"Noch keine Runden gespeichert."},"Löschen":{"en":"Delete","de":"Löschen"},"NOT AFFILIATED WITH EPIC GAMES":{"en":"NOT AFFILIATED WITH EPIC GAMES","de":"NICHT MIT EPIC GAMES VERBUNDEN"},"TRACKER-DATEN BLEIBEN AUF DIESEM GERÄT":{"en":"TRACKER DATA STAYS ON THIS DEVICE","de":"TRACKER-DATEN BLEIBEN AUF DIESEM GERÄT"},"Coming soon":{"en":"Coming soon","de":"Demnächst"},"Dieser Bereich wird in einem kommenden Update mit Funktionen gefüllt.":{"en":"More features will arrive in a future update.","de":"Dieser Bereich wird in einem kommenden Update mit Funktionen gefüllt."},"Dein Companion":{"en":"Your Companion","de":"Dein Companion"},"Die Navigation ist bereits aktiv. Deine Pirate-Tracker-Daten bleiben lokal auf diesem Gerät gespeichert.":{"en":"Navigation is active. Your Pirate Tracker data stays on this device.","de":"Die Navigation ist bereits aktiv. Deine Pirate-Tracker-Daten bleiben lokal auf diesem Gerät gespeichert."},"Einstellungen für deinen Fortnite Companion.":{"en":"Customize your Fortnite Companion.","de":"Einstellungen für deinen Fortnite Companion."},"Spieler suchen":{"en":"Search player","de":"Spieler suchen"},"Spielername":{"en":"Player name","de":"Spielername"},"Konto":{"en":"Account","de":"Konto"},"Zeitraum":{"en":"Period","de":"Zeitraum"},"Gesamte Laufzeit":{"en":"Lifetime","de":"Gesamte Laufzeit"},"Aktuelle Season":{"en":"Current season","de":"Aktuelle Season"},"SPIELERPROFIL":{"en":"PLAYER PROFILE","de":"SPIELERPROFIL"},"SIEGE":{"en":"WINS","de":"SIEGE"},"ELIMINIERUNGEN":{"en":"ELIMINATIONS","de":"ELIMINIERUNGEN"},"SIEGQUOTE":{"en":"WIN RATE","de":"SIEGQUOTE"},"SPIELZEIT":{"en":"PLAYTIME","de":"SPIELZEIT"},"Statistiken nach Modus":{"en":"Stats by mode","de":"Statistiken nach Modus"},"Keine Modus-Aufschlüsselung von der API geliefert.":{"en":"No mode breakdown available from the API.","de":"Keine Modus-Aufschlüsselung von der API geliefert."},"LOKALES SPIELERPROFIL":{"en":"LOCAL PLAYER PROFILE","de":"LOKALES SPIELERPROFIL"},"Mein Companion-Profil":{"en":"My Companion profile","de":"Mein Companion-Profil"},"Kostenlos und ohne Registrierung. Deine Daten bleiben ausschließlich in diesem Browser. Kein Online-Login und keine automatische Synchronisierung.":{"en":"Free, no registration. Your data stays in this browser. No online login or automatic sync.","de":"Kostenlos und ohne Registrierung. Deine Daten bleiben ausschließlich in diesem Browser. Kein Online-Login und keine automatische Synchronisierung."},"Dein Profilname":{"en":"Your profile name","de":"Dein Profilname"},"Avatar auswählen":{"en":"Choose avatar","de":"Avatar auswählen"},"Gespeicherte Runden":{"en":"Saved rounds","de":"Gespeicherte Runden"},"Eigene Kartenmarker":{"en":"Custom map markers","de":"Eigene Kartenmarker"},"Daten sichern und übertragen":{"en":"Back up and transfer data","de":"Daten sichern und übertragen"},"Exportiere dein Profil, deine Runden und Kartenmarker als JSON-Datei. Auf einem anderen Gerät kannst du die Datei wieder importieren.":{"en":"Export your profile, rounds and map markers as JSON. Import the file on another device.","de":"Exportiere dein Profil, deine Runden und Kartenmarker als JSON-Datei. Auf einem anderen Gerät kannst du die Datei wieder importieren."},"↓ Backup herunterladen":{"en":"↓ Download backup","de":"↓ Backup herunterladen"},"↑ Backup importieren":{"en":"↑ Import backup","de":"↑ Backup importieren"},"Achtung: Löschen der Browserdaten kann deine gespeicherten Daten entfernen. Ein Backup ist die einzige Wiederherstellungsmöglichkeit.":{"en":"Warning: Clearing browser data can erase saved data. Keep a backup for recovery.","de":"Achtung: Löschen der Browserdaten kann deine gespeicherten Daten entfernen. Ein Backup ist die einzige Wiederherstellungsmöglichkeit."},"Schließen":{"en":"Close","de":"Schließen"},"Sprache & Einstellungen":{"de":"Sprache","en":"Language"},"Wähle deine bevorzugte Sprache für die Benutzeroberfläche.":{"en":"Choose your preferred interface language.","de":"Wähle deine bevorzugte Sprache für die Benutzeroberfläche."},"Sprache auswählen":{"en":"Choose language","de":"Sprache auswählen"},"Die Auswahl wird kostenlos und lokal in deinem Browser gespeichert.":{"en":"Your choice is saved locally in your browser at no cost.","de":"Die Auswahl wird kostenlos und lokal in deinem Browser gespeichert."},"Sprache der Website":{"en":"Website language","de":"Sprache der Website"},"Menüs und unterstützte Oberflächentexte werden übersetzt. Namen und Beschreibungen aus externen Fortnite-APIs sowie eigene Notizen bleiben unverändert. Keine zusätzlichen Kosten.":{"en":"Menus and supported interface text are translated. Names and descriptions from external Fortnite APIs and your notes stay unchanged. No additional cost.","de":"Menüs und unterstützte Oberflächentexte werden übersetzt. Namen und Beschreibungen aus externen Fortnite-APIs sowie eigene Notizen bleiben unverändert. Keine zusätzlichen Kosten."},"YOUR FORTNITE HUB":{"de":"DEIN FORTNITE-HUB","en":"YOUR FORTNITE HUB"},"Stats, tools, loot and everything you need":{"de":"Statistiken, Tools, Beute und alles, was du brauchst","en":"Stats, tools, loot and everything you need"},"to stay ahead of the game.":{"de":"um im Spiel immer einen Schritt voraus zu sein.","en":"to stay ahead of the game."},"TOOLS":{"de":"TOOLS","en":"TOOLS"},"GAME MODE":{"de":"SPIELMODUS","en":"GAME MODE"},"ZERO BUILD":{"de":"NULL BAUEN","en":"ZERO BUILD"},"Pirate Tracker":{"de":"Piraten-Tracker","en":"Pirate Tracker"},"Item Shop":{"de":"Item-Shop","en":"Item Shop"},"Player Stats":{"de":"Spielerstatistiken","en":"Player Stats"},"Interactive Map":{"de":"Interaktive Karte","en":"Interactive Map"},"Language":{"de":"Sprache","en":"Language"},"ONLINE":{"de":"ONLINE","en":"ONLINE"},"LIVE SHOP":{"de":"LIVE-SHOP","en":"LIVE SHOP"},"Cosmetics suchen …":{"de":"Kosmetische Gegenstände suchen …","en":"Search cosmetics …"},"Sortierung":{"de":"Sortierung","en":"Sort order"},"Quelle:":{"de":"Quelle:","en":"Source:"},"(Drittanbieter). Keine Verbindung zu Epic Games.":{"de":"(Drittanbieter). Keine Verbindung zu Epic Games.","en":"(third party). Not affiliated with Epic Games."},"Menschen-Symbol":{"de":"Menschen-Symbol","en":"person icon"},"um dein kostenloses lokales Profil einzurichten, deine Daten zu speichern und ein Backup zu erstellen. Deine Daten bleiben in diesem Browser – für andere Geräte kannst du dein Backup importieren.":{"de":"um dein kostenloses lokales Profil einzurichten, deine Daten zu speichern und ein Backup zu erstellen. Deine Daten bleiben in diesem Browser – für andere Geräte kannst du dein Backup importieren.","en":"to set up your free local profile, save your data and create a backup. Your data stays in this browser; you can import your backup on another device."},"Companion.":{"de":"Companion.","en":"Companion."},"Companion v1.1":{"de":"Companion v1.1","en":"Companion v1.1"},"Statistiken, Tools, Beute und alles, was du brauchst":{"de":"Statistiken, Tools, Beute und alles, was du brauchst","en":"Stats, tools, loot and everything you need"},"Willkommen bei":{"de":"Willkommen bei","en":"Welcome to"},"RUNDEN":{"de":"RUNDEN","en":"ROUNDS"},"Keine Daten":{"de":"Keine Daten","en":"No data"},"Profil speichern":{"de":"Profil speichern","en":"Save profile"},"Profil öffnen":{"de":"Profil öffnen","en":"Open profile"},"Profil gespeichert.":{"de":"Profil gespeichert.","en":"Profile saved."},"Backup wurde heruntergeladen.":{"de":"Backup wurde heruntergeladen.","en":"Backup downloaded."},"Backup erfolgreich importiert.":{"de":"Backup erfolgreich importiert.","en":"Backup imported successfully."},"LOCAL PLAYER PROFILE":{"de":"LOKALES SPIELERPROFIL","en":"LOCAL PLAYER PROFILE"},"Save":{"de":"Speichern","en":"Save"},"Cancel":{"de":"Abbrechen","en":"Cancel"},"Keine Verbindung zu Epic Games.":{"de":"Keine Verbindung zu Epic Games.","en":"Not affiliated with Epic Games."},"Willkommen bei Companion.":{"de":"Willkommen bei Companion.","en":"Welcome to Companion."},"Stats, tools, loot and everything you need to stay ahead of the game.":{"de":"Statistiken, Tools, Beute und alles, was du brauchst, um im Spiel voraus zu sein.","en":"Stats, tools, loot and everything you need to stay ahead of the game."}};
+let currentLanguage=(()=>{try{return ['de','en'].includes(localStorage.getItem(LANGUAGE_KEY))?localStorage.getItem(LANGUAGE_KEY):'de';}catch{return 'de';}})();
+const originalUiText=new WeakMap();
+function translateUi(root=document){
+  document.documentElement.lang=currentLanguage;
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  let node;
+  while((node=walker.nextNode())){
+    const parent=node.parentElement;
+    if(!parent||parent.closest('script,style,textarea,code,pre,[data-no-translate]'))continue;
+    const initial=originalUiText.has(node)?originalUiText.get(node):node.nodeValue;
+    const key=initial.trim();
+    if(!Object.prototype.hasOwnProperty.call(UI_TRANSLATIONS,key))continue;
+    if(!originalUiText.has(node))originalUiText.set(node,initial);
+    const leading=initial.match(/^\s*/)[0],trailing=initial.match(/\s*$/)[0];
+    const next=leading+UI_TRANSLATIONS[key][currentLanguage]+trailing;
+    if(node.nodeValue!==next)node.nodeValue=next;
+  }
+  root.querySelectorAll?.('[placeholder],[aria-label],[title]').forEach(el=>{
+    for(const attr of ['placeholder','aria-label','title']){
+      const raw=el.getAttribute(attr);if(!raw)continue;
+      const key='data-original-'+attr;
+      const original=el.getAttribute(key)||raw;
+      if(UI_TRANSLATIONS[original]){el.setAttribute(key,original);el.setAttribute(attr,UI_TRANSLATIONS[original][currentLanguage]);}
+    }
+  });
+}
+let translatingUi=false;
+const languageObserver=new MutationObserver(()=>{
+  if(translatingUi)return;
+  translatingUi=true;
+  try{translateUi(document.body);}finally{translatingUi=false;}
+});
+languageObserver.observe(document.body,{childList:true,subtree:true,characterData:true});
+function setSiteLanguage(lang){
+  if(!LANGUAGES[lang])return;
+  currentLanguage=lang;
+  try{localStorage.setItem(LANGUAGE_KEY,lang);}catch{}
+  translateUi(document.body);
+  const page=document.querySelector('.nav-item.active[data-page]')?.dataset.page||'Dashboard';
+  selectPage(page);
+  translateUi(document.body);
+}
+function renderSettings(){
+  content.innerHTML=`<div class="page-header"><div class="eyebrow">FORTNITE COMPANION</div><h1>Language</h1><p>Wähle deine bevorzugte Sprache für die Benutzeroberfläche.</p></div>
+    <div class="panel-card language-settings"><h2>Sprache auswählen</h2><p>Die Auswahl wird kostenlos und lokal in deinem Browser gespeichert.</p>
+    <label for="siteLanguage">Sprache der Website</label>
+    <select id="siteLanguage" aria-label="Sprache der Website">${Object.entries(LANGUAGES).map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select>
+    <p class="language-note">Menüs und unterstützte Oberflächentexte werden übersetzt. Namen und Beschreibungen aus externen Fortnite-APIs sowie eigene Notizen bleiben unverändert. Keine zusätzlichen Kosten.</p></div>
+    <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
+  document.getElementById('siteLanguage').addEventListener('change',e=>setSiteLanguage(e.target.value));
+  translateUi(content);
+}
+translateUi(document.body);

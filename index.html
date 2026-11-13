@@ -15,7 +15,7 @@
         <div class="brand-icon">F</div>
         <div><strong>FORTNITE</strong><span>COMPANION</span></div>
       </a>
-      <div class="nav-label">MAIN MENU</div>
+      <div class="nav-label">HAUPTMENÜ</div>
       <nav class="navigation">
         <button class="nav-item active" data-page="Dashboard"><span>◈</span> Dashboard</button>
         <button class="nav-item" data-page="Pirate Tracker"><span>♜</span> Pirate Tracker</button>
@@ -24,12 +24,12 @@
         <button class="nav-item" data-page="Interactive Map"><span>◎</span> Interactive Map</button>
         <button class="nav-item" data-page="Weapon Database"><span>⚔</span> Weapon Database</button>
       </nav>
-      <div class="nav-label">DISCOVER</div>
+      <div class="nav-label">ENTDECKEN</div>
       <nav class="navigation">
         <button class="nav-item" data-page="News & Updates"><span>▤</span> News & Updates</button>
       </nav>
       <div class="sidebar-bottom">
-        <button class="nav-item" data-page="Settings"><span>⚙</span> Settings</button>
+        <button class="nav-item" data-page="Settings"><span>🌐</span> Language</button>
         <div class="sidebar-version"><span class="status-dot"></span> Companion v1.1</div>
       </div>
     </aside>
@@ -40,37 +40,37 @@
         <div class="breadcrumb"><span>COMPANION</span><span>/</span><strong id="pageTitle">Dashboard</strong></div>
         <div class="topbar-right">
           <div class="live-status"><span class="status-dot"></span> ONLINE</div>
-          <button class="avatar" id="profileButton" type="button" aria-label="Profil öffnen"><span id="profileInitials">FC</span></button>
+          <button class="avatar" id="profileButton" type="button" aria-label="Profil öffnen"><span id="profileInitials"><svg class="profile-person-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg></span></button>
         </div>
       </header>
       <div id="profileModal" class="profile-overlay" hidden></div>
 
       <section class="content" id="content">
         <div class="welcome">
-          <div><div class="eyebrow">YOUR FORTNITE HUB</div><h1>Welcome to <span>Companion.</span></h1><p>Everything Fortnite. All in one place.</p></div>
+          <div><div class="eyebrow">DEIN FORTNITE-HUB</div><h1>Willkommen bei <span>Companion.</span></h1><p>Alles zu Fortnite. An einem Ort.</p></div>
           <div class="date-card"><span>HEUTE</span><strong id="currentDate">--.--.----</strong></div>
         </div>
         <div class="hero">
           <div class="hero-content">
-            <div class="hero-tag">YOUR ULTIMATE FORTNITE HUB</div>
-            <h2>Level up your<br>Fortnite experience.</h2>
-            <p>Stats, tools, loot and everything you need<br class="desktop-only"> to stay ahead of the game.</p>
-            <button class="primary-button" id="exploreButton">Explore Companion <span>→</span></button>
+            <div class="hero-tag">DEIN ULTIMATIVER FORTNITE-HUB</div>
+            <h2>Verbessere dein<br>Fortnite-Erlebnis.</h2>
+            <p>Statistiken, Tools, Beute und alles, was du brauchst<br class="desktop-only"> um im Spiel voraus zu sein.</p>
+            <button class="primary-button" id="exploreButton">Companion entdecken <span>→</span></button>
           </div>
           <div class="hero-decoration">FC</div>
         </div>
-        <div class="section-heading"><div><h2>Quick Access</h2><p>Jump straight into your favorite tools.</p></div></div>
+        <div class="section-heading"><div><h2>Schnellzugriff</h2><p>Direkt zu deinen Lieblingstools.</p></div></div>
         <div class="quick-grid">
-          <button class="quick-card" data-page="Pirate Tracker"><div class="quick-icon pirate">♜</div><div><h3>Pirate Tracker</h3><p>Track chests and treasures</p></div><span class="arrow">↗</span></button>
-          <button class="quick-card" data-page="Item Shop"><div class="quick-icon shop">◇</div><div><h3>Item Shop</h3><p>Explore cosmetics</p></div><span class="arrow">↗</span></button>
-          <button class="quick-card" data-page="Player Stats"><div class="quick-icon stats">▥</div><div><h3>Player Stats</h3><p>Analyze your performance</p></div><span class="arrow">↗</span></button>
-          <button class="quick-card" data-page="Interactive Map"><div class="quick-icon map">◎</div><div><h3>Interactive Map</h3><p>Discover locations</p></div><span class="arrow">↗</span></button>
+          <button class="quick-card" data-page="Pirate Tracker"><div class="quick-icon pirate">♜</div><div><h3>Pirate Tracker</h3><p>Truhen und Schätze erfassen</p></div><span class="arrow">↗</span></button>
+          <button class="quick-card" data-page="Item Shop"><div class="quick-icon shop">◇</div><div><h3>Item Shop</h3><p>Kosmetische Gegenstände entdecken</p></div><span class="arrow">↗</span></button>
+          <button class="quick-card" data-page="Player Stats"><div class="quick-icon stats">▥</div><div><h3>Player Stats</h3><p>Deine Leistung analysieren</p></div><span class="arrow">↗</span></button>
+          <button class="quick-card" data-page="Interactive Map"><div class="quick-icon map">◎</div><div><h3>Interactive Map</h3><p>Orte entdecken</p></div><span class="arrow">↗</span></button>
         </div>
-        <div class="section-heading"><div><h2>Platform Overview</h2><p>Your companion at a glance.</p></div></div>
+        <div class="section-heading"><div><h2>Plattformüberblick</h2><p>Dein Companion auf einen Blick.</p></div></div>
         <div class="stats-grid">
-          <div class="stat-card"><span class="stat-label">TOOLS</span><strong>06</strong><span class="stat-note">Planned modules</span></div>
-          <div class="stat-card"><span class="stat-label">GAME MODE</span><strong>ZERO BUILD</strong><span class="stat-note">Focus mode</span></div>
-          <div class="stat-card"><span class="stat-label">VERSION</span><strong>1.1.0</strong><span class="stat-note">Companion update</span></div>
+          <div class="stat-card"><span class="stat-label">TOOLS</span><strong>06</strong><span class="stat-note">Geplante Module</span></div>
+          <div class="stat-card"><span class="stat-label">SPIELMODUS</span><strong>ZERO BUILD</strong><span class="stat-note">Hauptspielmodus</span></div>
+          <div class="stat-card"><span class="stat-label">VERSION</span><strong>1.1.0</strong><span class="stat-note">Companion-Update</span></div>
         </div>
         <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>
       </section>
