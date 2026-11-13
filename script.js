@@ -31,6 +31,7 @@ function selectPage(page){
   if(page === "Pirate Tracker"){ renderPirateTracker(); return; }
   if(page === "Item Shop"){ renderItemShop(); return; }
   if(page === "Player Stats"){ renderPlayerStats(); return; }
+  if(page === "Interactive Map"){ renderInteractiveMap(); return; }
   renderPlaceholder(page);
 }
 function renderDashboard(){
@@ -347,6 +348,160 @@ async function searchPlayerStats(event){
   }
 }
 
+
+// Interaktive Inselkarte: öffentliche Live-Daten von Fortnite-API.com.
+// Die API gibt Kartenbild und POI-Positionen zurück. Bei fehlenden Koordinaten
+// werden keine Marker erfunden.
+const CUSTOM_MAP_KEY='fortniteCompanionCustomMapMarkersV1';
+const MAP_CATEGORIES={chest:{label:'Truhe',icon:'📦'},ammo:{label:'Munitionskiste',icon:'🎯'},vehicle:{label:'Fahrzeug',icon:'🚗'},routeA:{label:'Duo Route A',icon:'🟣'},routeB:{label:'Duo Route B',icon:'🔵'},other:{label:'Sonstiges',icon:'📍'}};
+let islandMapState={zoom:1,offsetX:0,offsetY:0,pois:[],selected:null,showPois:true,custom:loadCustomMapMarkers(),showCustom:true,placing:false,category:'chest'};
+function loadCustomMapMarkers(){try{const data=JSON.parse(localStorage.getItem(CUSTOM_MAP_KEY)||'[]');return Array.isArray(data)?data.filter(m=>m&&typeof m.id==='string'&&MAP_CATEGORIES[m.category]&&Number.isFinite(m.x)&&Number.isFinite(m.y)&&m.x>=0&&m.x<=100&&m.y>=0&&m.y<=100).slice(0,1000):[];}catch{return [];}}
+function saveCustomMapMarkers(){try{localStorage.setItem(CUSTOM_MAP_KEY,JSON.stringify(islandMapState.custom));return true;}catch{showToast('Speichern im Browser nicht möglich.');return false;}}
+function mapEscape(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function renderInteractiveMap(){
+  content.innerHTML=`<div class="page-header"><div class="eyebrow">LIVE ISLAND MAP</div><h1>Interactive Map</h1><p>Die aktuelle Fortnite Battle-Royale-Insel – auch für Zero Build. Zoome, verschiebe die Karte und entdecke benannte Orte.</p></div>
+  <div class="panel-card map-tools"><div><strong id="islandMapStatus">Aktuelle Inselkarte wird geladen …</strong><p id="islandMapUpdated">Quelle: Fortnite-API.com</p></div><button class="btn primary" id="mapReload">↻ Aktualisieren</button></div>
+  <div class="map-layout"><div class="panel-card map-main"><div class="map-toolbar"><button class="btn" id="mapZoomIn" aria-label="Vergrößern">＋</button><button class="btn" id="mapZoomOut" aria-label="Verkleinern">－</button><button class="btn" id="mapReset">⤢ Zentrieren</button><label class="map-check"><input type="checkbox" id="mapShowPois" checked> POIs anzeigen</label></div>
+  <div class="map-viewport" id="mapViewport"><div class="map-stage" id="mapStage"><img id="mapIslandImage" alt="Aktuelle Fortnite Inselkarte" draggable="false"><div id="mapMarkers" class="map-markers"></div><div id="mapCustomMarkers" class="map-custom-markers"></div></div><div id="mapLoading" class="map-loading">Lade Kartenbild …</div></div><p class="map-caption">Ziehen zum Verschieben · Mausrad oder +/− zum Zoomen · Auf dem Handy mit zwei Fingern zoomen</p></div>
+  <aside class="panel-card map-sidebar"><section class="map-custom-panel"><h2>Eigene Fundorte</h2><p class="map-help">Kostenlos · Nur in diesem Browser gespeichert · Keine offiziellen Spawn-Daten</p>
+  <label class="map-field-label" for="mapCustomCategory">Marker-Typ</label><select id="mapCustomCategory" class="map-custom-select"><option value="chest">📦 Truhe</option><option value="ammo">🎯 Munitionskiste</option><option value="vehicle">🚗 Fahrzeug</option><option value="routeA">🟣 Duo Route A</option><option value="routeB">🔵 Duo Route B</option><option value="other">📍 Sonstiges</option></select>
+  <label class="map-field-label" for="mapCustomNote">Notiz (optional)</label><input id="mapCustomNote" maxlength="100" placeholder="z. B. Dachboden / Haus" />
+  <button id="mapPlaceMarker" class="btn primary map-place-button" type="button">＋ Marker auf Karte setzen</button>
+  <label class="map-custom-toggle"><input type="checkbox" id="mapShowCustom" checked> Eigene Marker anzeigen</label>
+  <div class="map-custom-count" id="mapCustomCount"></div><div id="mapCustomList" class="map-custom-list"></div>
+  <div class="map-custom-actions"><button class="btn" id="mapExportMarkers" type="button">Exportieren</button><label class="btn map-import-label" for="mapImportMarkers">Importieren</label><input type="file" id="mapImportMarkers" accept="application/json,.json" hidden></div>
+  <button class="btn map-delete-all" id="mapDeleteMarkers" type="button">Alle eigenen Marker löschen</button></section><div class="map-poi-divider"></div><h2>Orte auf der Insel <span id="mapPoiCount"></span></h2><input id="mapPoiSearch" type="search" placeholder="Ort suchen …" aria-label="Orte suchen"><div id="mapPoiList" class="map-poi-list"><p>Lade Orte …</p></div></aside></div>
+  <p class="shop-source">Karte und Ortsdaten: <a href="https://fortnite-api.com/" target="_blank" rel="noopener noreferrer">Fortnite-API.com</a>. Eigene Marker sind persönliche Notizen, keine garantierten Truhen- oder Loot-Spawns. Keine Verbindung zu Epic Games.</p>
+  <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
+  const viewport=document.getElementById('mapViewport');
+  document.getElementById('mapCustomCategory').onchange=e=>islandMapState.category=e.target.value;
+  document.getElementById('mapPlaceMarker').onclick=()=>{islandMapState.placing=!islandMapState.placing;mapUpdatePlacing();};
+  document.getElementById('mapShowCustom').onchange=e=>{islandMapState.showCustom=e.target.checked;mapDrawCustomMarkers();};
+  document.getElementById('mapExportMarkers').onclick=mapExportCustom;
+  document.getElementById('mapImportMarkers').onchange=mapImportCustom;
+  document.getElementById('mapDeleteMarkers').onclick=()=>{if(!islandMapState.custom.length)return;if(confirm('Alle selbst gesetzten Kartenmarker in diesem Browser löschen?')){islandMapState.custom=[];saveCustomMapMarkers();mapDrawCustomMarkers();}};
+  viewport.addEventListener('click',mapPlaceAtClick);
+  mapDrawCustomMarkers();
+  document.getElementById('mapZoomIn').onclick=()=>mapZoom(1.3);
+  document.getElementById('mapZoomOut').onclick=()=>mapZoom(1/1.3);
+  document.getElementById('mapReset').onclick=()=>{islandMapState.zoom=1;islandMapState.offsetX=0;islandMapState.offsetY=0;mapTransform();};
+  document.getElementById('mapShowPois').onchange=e=>{islandMapState.showPois=e.target.checked;mapDrawMarkers();};
+  document.getElementById('mapPoiSearch').oninput=mapDrawList;
+  document.getElementById('mapReload').onclick=()=>loadIslandMap();
+  viewport.addEventListener('wheel',e=>{e.preventDefault();mapZoom(e.deltaY<0?1.15:1/1.15);},{passive:false});
+  let drag=null, pinchDistance=null;
+  viewport.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;drag={x:e.clientX,y:e.clientY,ox:islandMapState.offsetX,oy:islandMapState.offsetY,startX:e.clientX,startY:e.clientY};viewport.setPointerCapture(e.pointerId);});
+  viewport.addEventListener('pointermove',e=>{if(!drag)return;islandMapState.offsetX=drag.ox+e.clientX-drag.x;islandMapState.offsetY=drag.oy+e.clientY-drag.y;mapTransform();});
+  viewport.addEventListener('pointerup',()=>{if(drag&&Math.hypot((drag.x||0)-(drag.startX||0),(drag.y||0)-(drag.startY||0))>5)viewport.dataset.wasDragged='1';drag=null;});
+  viewport.addEventListener('pointercancel',()=>drag=null);
+  viewport.addEventListener('touchstart',e=>{if(e.touches.length===1){drag={x:e.touches[0].clientX,y:e.touches[0].clientY,ox:islandMapState.offsetX,oy:islandMapState.offsetY};pinchDistance=null;}else if(e.touches.length===2){drag=null;pinchDistance=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
+  viewport.addEventListener('touchmove',e=>{if(e.touches.length===2){e.preventDefault();const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(pinchDistance)mapZoom(d/pinchDistance);pinchDistance=d;}else if(e.touches.length===1&&drag){e.preventDefault();islandMapState.offsetX=drag.ox+e.touches[0].clientX-drag.x;islandMapState.offsetY=drag.oy+e.touches[0].clientY-drag.y;mapTransform();}},{passive:false});
+  viewport.addEventListener('touchend',()=>{drag=null;pinchDistance=null;});
+  loadIslandMap();
+}
+function mapZoom(factor){islandMapState.zoom=Math.max(1,Math.min(5,islandMapState.zoom*factor));mapTransform();}
+function mapTransform(){const stage=document.getElementById('mapStage');if(stage)stage.style.transform=`translate(${islandMapState.offsetX}px,${islandMapState.offsetY}px) scale(${islandMapState.zoom})`;}
+function mapCoordinate(poi){
+  const loc=poi.location||poi.coordinates||{};
+  const x=Number(loc.x),y=Number(loc.y);
+  if(!Number.isFinite(x)||!Number.isFinite(y)||loc.x==null||loc.y==null)return null;
+  // Fortnite-API /v1/map liefert Kartenpixel-Koordinaten (typisch 0–2048).
+  const img=document.getElementById('mapIslandImage');
+  const w=img?.naturalWidth||2048,h=img?.naturalHeight||2048;
+  if(x<0||y<0||x>w||y>h)return null;
+  return {x:x/w*100,y:y/h*100};
+}
+function mapDrawMarkers(){
+  const container=document.getElementById('mapMarkers');if(!container)return;
+  container.innerHTML='';if(!islandMapState.showPois)return;
+  islandMapState.pois.forEach((poi,i)=>{const pt=mapCoordinate(poi);if(!pt)return;
+    const button=document.createElement('button');button.className='map-pin'+(islandMapState.selected===i?' selected':'');button.type='button';button.title=poi.name||'Ort';button.setAttribute('aria-label',poi.name||'Ort');button.style.left=pt.x+'%';button.style.top=pt.y+'%';button.textContent='●';button.onclick=()=>mapFocus(i);container.appendChild(button);
+  });
+}
+function mapDrawList(){const list=document.getElementById('mapPoiList');if(!list)return;
+  const q=(document.getElementById('mapPoiSearch')?.value||'').trim().toLocaleLowerCase('de');list.innerHTML='';
+  let count=0;islandMapState.pois.forEach((poi,i)=>{const name=String(poi.name||'');if(!name.toLocaleLowerCase('de').includes(q))return;count++;
+    const b=document.createElement('button');b.className='map-poi-item'+(islandMapState.selected===i?' active':'');b.type='button';b.textContent=name;b.onclick=()=>mapFocus(i);list.appendChild(b);
+  });if(!count)list.textContent='Keine Orte gefunden.';
+  const el=document.getElementById('mapPoiCount');if(el)el.textContent=`(${islandMapState.pois.length})`;
+}
+function mapFocus(index){islandMapState.selected=index;const pt=mapCoordinate(islandMapState.pois[index]);
+  if(pt){const vp=document.getElementById('mapViewport');const rect=vp.getBoundingClientRect();const side=Math.min(rect.width,rect.height);islandMapState.zoom=Math.max(1.6,islandMapState.zoom);islandMapState.offsetX=(.5-pt.x/100)*side*islandMapState.zoom;islandMapState.offsetY=(.5-pt.y/100)*side*islandMapState.zoom;mapTransform();}
+  mapDrawMarkers();mapDrawList();
+}
+async function loadIslandMap(){
+  const status=document.getElementById('islandMapStatus'),loading=document.getElementById('mapLoading'),img=document.getElementById('mapIslandImage');if(!status)return;
+  status.textContent='Aktuelle Inselkarte wird geladen …';loading.hidden=false;
+  try{
+    const res=await fetch('https://fortnite-api.com/v1/map?language=de',{cache:'no-store'});
+    if(!res.ok)throw new Error('Karten-API: HTTP '+res.status);
+    const json=await res.json();if(!json.data)throw new Error('Keine Kartendaten erhalten');
+    if(!document.getElementById('mapIslandImage'))return;
+    const data=json.data;
+    const imageUrl=data.images?.pois||data.images?.blank||'https://fortnite-api.com/images/map_de.png';
+    const safeUrl=new URL(imageUrl,location.href);if(safeUrl.protocol!=='https:')throw new Error('Ungültige Kartenbild-Adresse');
+    img.onload=()=>{if(document.getElementById('mapLoading'))loading.hidden=true;mapDrawMarkers();};
+    img.onerror=()=>{if(document.getElementById('mapLoading'))loading.textContent='Kartenbild konnte nicht geladen werden.';};
+    img.src=safeUrl.href;
+    islandMapState.pois=Array.isArray(data.pois)?data.pois.filter(p=>p&&p.name):[];
+    islandMapState.selected=null;islandMapState.zoom=1;islandMapState.offsetX=0;islandMapState.offsetY=0;mapTransform();
+    status.textContent='Aktuelle Fortnite-Inselkarte';
+    document.getElementById('mapIslandImage').alt='Aktuelle Fortnite-Inselkarte';
+    const updated=document.getElementById('islandMapUpdated');if(updated)updated.textContent='Live-Kartendaten · '+islandMapState.pois.length+' Orte · Quelle: Fortnite-API.com';
+    mapDrawList();mapDrawMarkers();mapDrawCustomMarkers();
+  }catch(err){if(document.getElementById('islandMapStatus')){status.textContent='Karte derzeit nicht verfügbar';loading.textContent='Die aktuelle Karte konnte nicht geladen werden. Bitte später erneut versuchen.';}}
+}
+
+
+// Custom markers use percentages of the rendered square map. They are user observations,
+// not verified or guaranteed chest spawns. No paid API or backend is required.
+function mapUpdatePlacing(){const btn=document.getElementById('mapPlaceMarker'),vp=document.getElementById('mapViewport');if(!btn||!vp)return;btn.textContent=islandMapState.placing?'Abbrechen – Karte antippen':'＋ Marker auf Karte setzen';btn.classList.toggle('map-placing',islandMapState.placing);vp.classList.toggle('map-placing',islandMapState.placing);}
+function mapPlaceAtClick(event){
+  if(!islandMapState.placing||event.target.closest('button'))return;
+  const viewport=document.getElementById('mapViewport');
+  if(viewport.dataset.wasDragged){delete viewport.dataset.wasDragged;return;}
+  const stage=document.getElementById('mapStage');const rect=stage.getBoundingClientRect();
+  if(!rect.width||!rect.height)return;
+  const x=(event.clientX-rect.left)/rect.width*100,y=(event.clientY-rect.top)/rect.height*100;
+  if(x<0||x>100||y<0||y>100)return;
+  const category=islandMapState.category;
+  if(!MAP_CATEGORIES[category])return;
+  const note=document.getElementById('mapCustomNote').value.trim().slice(0,100);
+  islandMapState.custom.push({id:String(Date.now())+'-'+Math.random().toString(36).slice(2,9),category,x:+x.toFixed(3),y:+y.toFixed(3),note});
+  if(islandMapState.custom.length>1000)islandMapState.custom.shift();
+  saveCustomMapMarkers();islandMapState.placing=false;mapUpdatePlacing();mapDrawCustomMarkers();showToast('Marker gespeichert');
+}
+function mapDrawCustomMarkers(){
+  const layer=document.getElementById('mapCustomMarkers');if(!layer)return;layer.replaceChildren();
+  if(islandMapState.showCustom){islandMapState.custom.forEach(m=>{
+    const b=document.createElement('button');b.type='button';b.className='map-custom-pin map-custom-'+m.category;
+    b.style.left=m.x+'%';b.style.top=m.y+'%';b.textContent=MAP_CATEGORIES[m.category].icon;
+    b.title=MAP_CATEGORIES[m.category].label+(m.note?' – '+m.note:'');
+    b.setAttribute('aria-label',b.title);b.onclick=()=>{const index=islandMapState.custom.findIndex(v=>v.id===m.id);if(index>=0){document.querySelectorAll('.map-custom-item').forEach(el=>el.classList.toggle('active',el.dataset.id===m.id));}};
+    layer.appendChild(b);
+  });}
+  const list=document.getElementById('mapCustomList'),count=document.getElementById('mapCustomCount');
+  if(count)count.textContent=islandMapState.custom.length+' eigene Marker';if(!list)return;
+  list.replaceChildren();if(!islandMapState.custom.length){const p=document.createElement('p');p.className='map-help';p.textContent='Noch keine Marker. Wähle einen Typ und tippe auf die Karte.';list.appendChild(p);return;}
+  islandMapState.custom.forEach(m=>{const item=document.createElement('div');item.className='map-custom-item';item.dataset.id=m.id;
+    const title=document.createElement('button');title.type='button';title.className='map-custom-focus';title.textContent=MAP_CATEGORIES[m.category].icon+' '+(m.note||MAP_CATEGORIES[m.category].label);
+    title.onclick=()=>{const vp=document.getElementById('mapViewport');const rect=vp.getBoundingClientRect();const side=Math.min(rect.width,rect.height);islandMapState.zoom=Math.max(1.6,islandMapState.zoom);islandMapState.offsetX=(.5-m.x/100)*side*islandMapState.zoom;islandMapState.offsetY=(.5-m.y/100)*side*islandMapState.zoom;mapTransform();};
+    const del=document.createElement('button');del.type='button';del.className='map-custom-remove';del.textContent='×';del.title='Marker löschen';del.setAttribute('aria-label','Marker löschen');del.onclick=()=>{islandMapState.custom=islandMapState.custom.filter(v=>v.id!==m.id);saveCustomMapMarkers();mapDrawCustomMarkers();};
+    item.append(title,del);list.appendChild(item);
+  });
+}
+function mapExportCustom(){const blob=new Blob([JSON.stringify({version:1,markers:islandMapState.custom},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='fortnite-companion-kartenmarker.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function mapImportCustom(event){const file=event.target.files?.[0];event.target.value='';if(!file)return;
+  if(file.size>250000){showToast('Datei ist zu groß');return;}
+  try{const obj=JSON.parse(await file.text());if(obj.version!==1||!Array.isArray(obj.markers))throw Error('Ungültiges Format');
+    const valid=obj.markers.filter(m=>m&&MAP_CATEGORIES[m.category]&&typeof m.id==='string'&&Number.isFinite(m.x)&&Number.isFinite(m.y)&&m.x>=0&&m.x<=100&&m.y>=0&&m.y<=100&&typeof m.note==='string'&&m.note.length<=100).slice(0,1000);
+    if(valid.length!==obj.markers.length)throw Error('Ungültige Marker-Daten');
+    if(!confirm(valid.length+' Marker importieren? Vorhandene Marker werden ersetzt.'))return;
+    islandMapState.custom=valid;saveCustomMapMarkers();mapDrawCustomMarkers();showToast('Marker importiert');
+  }catch{showToast('Ungültige Marker-Datei');}
+}
+
 function renderPlaceholder(page){
   const descriptions = {
     "Item Shop":"Hier entsteht eine Übersicht des aktuellen Fortnite Item Shops.",
@@ -445,6 +600,81 @@ document.addEventListener("click", event=>{
   if(event.target.closest("#exploreButton")) selectPage("Pirate Tracker");
 });
 document.getElementById("menuToggle").addEventListener("click",()=>sidebar.classList.toggle("open"));
-document.getElementById("profileButton").addEventListener("click",()=>showToast("Profilbereich – weitere Funktionen folgen."));
+document.getElementById("profileButton").addEventListener("click",openLocalProfile);
+refreshProfileAvatar();
 document.querySelector(".brand").addEventListener("click",event=>{event.preventDefault();selectPage("Dashboard");});
 updateDate();
+
+
+// Lokales Spielerprofil: kein Server, keine Anmeldung, kein Passwort.
+const LOCAL_PROFILE_KEY='fortniteCompanionLocalProfileV1';
+const PROFILE_ICONS=['🎮','🐧','🏴‍☠️','⭐','🦊','🚀','💜','🏆'];
+function readLocalProfile(){
+  try{const p=JSON.parse(localStorage.getItem(LOCAL_PROFILE_KEY)||'{}');return {name:typeof p.name==='string'?p.name.slice(0,32):'',icon:PROFILE_ICONS.includes(p.icon)?p.icon:'🎮'};}
+  catch{return {name:'',icon:'🎮'};}
+}
+function refreshProfileAvatar(){
+  const p=readLocalProfile();const el=document.getElementById('profileInitials');
+  if(el)el.textContent=p.name?p.icon:'FC';
+  const btn=document.getElementById('profileButton');
+  if(btn)btn.title=p.name?`Lokales Profil: ${p.name}`:'Lokales Profil erstellen';
+}
+function profileClose(){const el=document.getElementById('profileModal');if(el){el.hidden=true;el.innerHTML='';}document.removeEventListener('keydown',profileEscape);}
+function profileEscape(e){if(e.key==='Escape')profileClose();}
+function profileBackupData(){
+  return {format:'fortnite-companion-local-backup',version:1,exportedAt:new Date().toISOString(),profile:readLocalProfile(),tracker:trackerState,markers:loadCustomMapMarkers()};
+}
+function profileDownload(){
+  const data=JSON.stringify(profileBackupData(),null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;
+  a.download='fortnite-companion-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showToast('Backup wurde heruntergeladen.');
+}
+function profileValidateBackup(data){
+  if(!data||data.format!=='fortnite-companion-local-backup'||data.version!==1)throw Error('Keine gültige Companion-Backup-Datei.');
+  if(!data.profile||typeof data.profile.name!=='string'||data.profile.name.length>32||!PROFILE_ICONS.includes(data.profile.icon))throw Error('Ungültige Profildaten.');
+  if(!data.tracker||typeof data.tracker!=='object'||Array.isArray(data.tracker)||!Array.isArray(data.tracker.rounds)||data.tracker.rounds.length>10000)throw Error('Ungültige Tracker-Daten.');
+  if(!Array.isArray(data.markers)||data.markers.length>1000||data.markers.some(m=>!m||typeof m.id!=='string'||m.id.length>120||!MAP_CATEGORIES[m.category]||!Number.isFinite(m.x)||!Number.isFinite(m.y)||m.x<0||m.x>100||m.y<0||m.y>100))throw Error('Ungültige Kartenmarker.');
+  return data;
+}
+async function profileImport(file){
+  if(!file)return;
+  try{
+    if(file.size>1500000)throw Error('Backup-Datei ist zu groß (maximal 1,5 MB).');
+    const data=profileValidateBackup(JSON.parse(await file.text()));
+    if(!confirm('Backup importieren? Das ersetzt dein lokales Profil, deinen Pirate Tracker und deine Kartenmarker. Bitte vorher ein Backup deiner aktuellen Daten herunterladen.'))return;
+    const snapshot={profile:localStorage.getItem(LOCAL_PROFILE_KEY),tracker:localStorage.getItem(STORAGE_KEY),markers:localStorage.getItem(CUSTOM_MAP_KEY)};
+    try{
+      localStorage.setItem(LOCAL_PROFILE_KEY,JSON.stringify(data.profile));
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(data.tracker));
+      localStorage.setItem(CUSTOM_MAP_KEY,JSON.stringify(data.markers));
+    }catch(err){for(const [k,key] of [['profile',LOCAL_PROFILE_KEY],['tracker',STORAGE_KEY],['markers',CUSTOM_MAP_KEY]]){try{if(snapshot[k]===null)localStorage.removeItem(key);else localStorage.setItem(key,snapshot[k]);}catch{}}throw err;}
+    trackerState=loadState();islandMapState.custom=loadCustomMapMarkers();refreshProfileAvatar();profileClose();selectPage('Dashboard');showToast('Backup erfolgreich importiert.');
+  }catch(err){alert('Import fehlgeschlagen: '+err.message);}
+}
+function openLocalProfile(){
+  const p=readLocalProfile();const el=document.getElementById('profileModal');
+  el.hidden=false;
+  el.innerHTML=`<div class="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profileHeading">
+    <div class="profile-dialog-head"><div><div class="eyebrow">LOKALES SPIELERPROFIL</div><h2 id="profileHeading">Mein Companion-Profil</h2></div><button type="button" class="profile-close" id="profileClose" aria-label="Schließen">×</button></div>
+    <p class="profile-hint">Kostenlos und ohne Registrierung. Deine Daten bleiben ausschließlich in diesem Browser. Kein Online-Login und keine automatische Synchronisierung.</p>
+    <form id="localProfileForm" class="profile-form"><label for="localProfileName">Dein Profilname</label><input id="localProfileName" maxlength="32" required placeholder="Dein Spielername" value="${escapeHTML(p.name)}" autocomplete="nickname" />
+    <label>Avatar auswählen</label><div class="profile-icons" id="profileIcons">${PROFILE_ICONS.map(icon=>`<button type="button" class="profile-icon ${icon===p.icon?'chosen':''}" data-icon="${icon}" aria-label="Avatar ${icon}" aria-pressed="${icon===p.icon}">${icon}</button>`).join('')}</div>
+    <button type="submit" class="btn primary">Profil speichern</button></form>
+    <div class="profile-summary"><div><span>Gespeicherte Runden</span><strong>${Array.isArray(trackerState.rounds)?trackerState.rounds.length:0}</strong></div><div><span>Eigene Kartenmarker</span><strong>${loadCustomMapMarkers().length}</strong></div></div>
+    <div class="profile-backup"><h3>Daten sichern und übertragen</h3><p>Exportiere dein Profil, deine Runden und Kartenmarker als JSON-Datei. Auf einem anderen Gerät kannst du die Datei wieder importieren.</p>
+    <div class="profile-backup-actions"><button class="btn" type="button" id="profileExport">↓ Backup herunterladen</button><button class="btn" type="button" id="profileImportButton">↑ Backup importieren</button><input id="profileImportFile" type="file" accept=".json,application/json" hidden></div></div>
+    <p class="profile-footnote">Achtung: Löschen der Browserdaten kann deine gespeicherten Daten entfernen. Ein Backup ist die einzige Wiederherstellungsmöglichkeit.</p></div>`;
+  el.addEventListener('click',e=>{if(e.target===el)profileClose();},{once:true});
+  document.getElementById('profileClose').onclick=profileClose;
+  let selectedIcon=p.icon;
+  document.querySelectorAll('.profile-icon').forEach(btn=>btn.addEventListener('click',()=>{selectedIcon=btn.dataset.icon;document.querySelectorAll('.profile-icon').forEach(b=>{b.classList.toggle('chosen',b===btn);b.setAttribute('aria-pressed',String(b===btn));});}));
+  document.getElementById('localProfileForm').onsubmit=e=>{e.preventDefault();const name=document.getElementById('localProfileName').value.trim();if(!name)return;try{localStorage.setItem(LOCAL_PROFILE_KEY,JSON.stringify({name,icon:selectedIcon}));refreshProfileAvatar();profileClose();showToast('Profil gespeichert.');}catch{showToast('Lokales Speichern ist nicht möglich.');}};
+  document.getElementById('profileExport').onclick=profileDownload;
+  document.getElementById('profileImportButton').onclick=()=>document.getElementById('profileImportFile').click();
+  document.getElementById('profileImportFile').onchange=e=>profileImport(e.target.files[0]);
+  document.addEventListener('keydown',profileEscape);
+  document.getElementById('localProfileName').focus();
+}
