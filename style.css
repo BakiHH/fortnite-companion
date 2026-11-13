@@ -102,3 +102,17 @@ footer{display:flex;justify-content:space-between;border-top:1px solid var(--bor
 @media(max-width:950px){.weapon-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:720px){.weapon-grid{grid-template-columns:1fr}.weapon-controls{grid-template-columns:1fr 1fr}}@media(max-width:420px){.weapon-controls{grid-template-columns:1fr}.weapon-metrics{gap:6px}.weapon-card{padding:13px}}
 
 .weapon-icon{display:block;max-width:120px;height:85px;object-fit:contain;margin:0 auto 12px}.weapon-refresh{background:#493776;color:#fff;border:1px solid #8069c1;border-radius:8px;padding:8px 12px;cursor:pointer;margin-top:6px}
+
+/* Fortnite rarity tiers: same palette for chips and weapon cards */
+.weapon-rarity-guide{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 16px}
+.weapon-rarity{display:inline-flex;flex-direction:column;align-items:center;gap:3px;font-weight:700;border:1px solid var(--rarity-color,#888);color:var(--rarity-color,#bbb);background:var(--rarity-bg,#333);padding:6px 9px;border-radius:8px;font-size:11px;line-height:1.25;text-align:center}
+.weapon-stars{font-size:10px;letter-spacing:1px;white-space:nowrap}
+.weapon-common{--rarity-color:#c0c5ce;--rarity-bg:#343943}
+.weapon-uncommon{--rarity-color:#63dd78;--rarity-bg:#163c26}
+.weapon-rare{--rarity-color:#75b6ff;--rarity-bg:#153456}
+.weapon-epic{--rarity-color:#d19bff;--rarity-bg:#392054}
+.weapon-legendary{--rarity-color:#ffb35c;--rarity-bg:#50301a}
+.weapon-mythic{--rarity-color:#ffe277;--rarity-bg:#51451c}
+.weapon-exotic{--rarity-color:#76e8ed;--rarity-bg:#164448}
+.weapon-card{border-top:3px solid var(--weapon-border,#343b55)}
+.weapon-card:has(.weapon-common){--weapon-border:#a4aab4}.weapon-card:has(.weapon-uncommon){--weapon-border:#4ac968}.weapon-card:has(.weapon-rare){--weapon-border:#4c9efa}.weapon-card:has(.weapon-epic){--weapon-border:#b66bea}.weapon-card:has(.weapon-legendary){--weapon-border:#f5a044}.weapon-card:has(.weapon-mythic){--weapon-border:#f4d253}.weapon-card:has(.weapon-exotic){--weapon-border:#52cdd1}
