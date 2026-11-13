@@ -513,7 +513,7 @@ async function mapImportCustom(event){const file=event.target.files?.[0];event.t
 // FN Api: kostenlose öffentliche API, kein Schlüssel nötig. Lokaler Archiv-Fallback.
 const WEAPON_API="https://prod.fn-api.cc/v1/weapons";
 const WEAPON_CACHE_KEY="fc_weapon_verified_cache_v3";
-const WEAPON_CACHE_TTL=6*60*60*1000;
+const WEAPON_CACHE_TTL=60*60*1000;
 const WEAPON_ARCHIVE=[
  ["Assault Rifle","Sturmgewehr","Assault","Legendary",36,55.8,5.5,25,2.16],
  ["Ranger Assault Rifle","Ranger-Sturmgewehr","Assault","Legendary",45,76.5,3.65,22,2.12],
@@ -646,33 +646,53 @@ function weaponTypeLabel(type){
  return names?names[currentLanguage==="en"?1:0]:String(type).replace(/^FortWeapon/,"").replace(/ItemDefinition$/,"")||weaponT("Sonstige","Other");
 }
 function weaponT(de,en){return currentLanguage==="en"?en:de;}
+let weaponModeSelection="br";
+async function fetchCurrentLootIds(mode){
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),14000);
+ try{
+  const url="https://prod.fn-api.cc/v1/lootpool/search?"+new URLSearchParams({mode,limit:"1000"});
+  const response=await fetch(url,{signal:controller.signal});
+  if(!response.ok)throw Error("Lootpool API "+response.status);
+  const body=await response.json();
+  const entries=Array.isArray(body)?body:body?.items||body?.data?.items||body?.results;
+  if(!Array.isArray(entries)||!entries.length)throw Error("No current loot pool");
+  const ids=new Set();
+  for(const item of entries){
+   const id=item?.itemId||item?.weaponId||item?.item?.id||item?.itemDefinition;
+   if(typeof id==="string")ids.add(id.toLowerCase().replace(/[^a-z0-9]/g,""));
+  }
+  if(!ids.size)throw Error("No usable loot pool IDs");
+  return ids;
+ }finally{clearTimeout(timeout);}
+}
 function renderWeaponDatabase(){
  const token=++weaponViewToken;
  const tr=weaponT;
  content.innerHTML=`<div class="page-header"><div class="eyebrow">${tr("FORTNITE WAFFEN","FORTNITE WEAPONS")}</div><h1>${tr("Waffendatenbank","Weapon Database")}</h1><p>${tr("Waffenwerte aus einer externen Fortnite-Datenquelle (nicht offiziell bestätigt).","Weapon stats from a third-party Fortnite data source (not officially verified).")}</p></div>
  <div class="weapon-notice" id="weaponStatus" role="status" aria-live="polite">${tr("Lade Waffendaten …","Loading weapon data …")}</div>
- <div class="weapon-controls"><input id="weaponSearch" type="search" placeholder="${tr("Waffe suchen …","Search weapons …")}" aria-label="${tr("Waffe suchen","Search weapons")}">
+ <div class="weapon-controls"><select id="weaponMode" aria-label="${tr("Spielmodus","Game mode")}"><option value="br">Battle Royale</option><option value="zero">${tr("Null Bauen","Zero Build")}</option><option value="ranked">Ranked</option><option value="reload">Reload</option></select><input id="weaponSearch" type="search" placeholder="${tr("Waffe suchen …","Search weapons …")}" aria-label="${tr("Waffe suchen","Search weapons")}">
  <select id="weaponCategory" aria-label="${tr("Waffentyp","Weapon type")}"><option value="">${tr("Alle Waffentypen","All weapon types")}</option></select>
  <select id="weaponRarity" aria-label="${tr("Seltenheit","Rarity")}"><option value="">${tr("Alle Seltenheiten","All rarities")}</option></select>
  <select id="weaponSort" aria-label="${tr("Sortierung","Sort by")}"><option value="name">${tr("Name","Name")}</option><option value="damage">${tr("Schaden ↓","Damage ↓")}</option><option value="dps">DPS ↓</option><option value="fire">${tr("Feuerrate ↓","Fire rate ↓")}</option></select></div>
  <p class="weapon-count" id="weaponCount"></p><div class="weapon-grid" id="weaponGrid"></div>
- <p class="weapon-footnote">${tr("Deutsche Waffennamen werden nur angezeigt, wenn eine verlässliche Zuordnung vorhanden ist. Andernfalls bleibt der Originalname sichtbar.","German weapon names are shown only when a reliable match exists; otherwise the original name is retained.")}</p><p class="weapon-footnote">${tr("Die API enthält auch ältere und derzeit nicht verfügbare Waffen. Die Anzeige ist kein bestätigter aktueller Loot-Pool. Unklare Einträge und Gegenstände ohne nachweisbaren Waffenschaden werden ausgeschlossen. Nur belegte deutsche Waffennamen werden übersetzt. Fehlende Werte werden als „–“ angezeigt. DPS kann bei Schrotflinten/Mehrfachprojektilen anders berechnet werden.","The API also includes older and currently unavailable weapons. This is not a confirmed current loot pool. Ambiguous items and entries without weapon damage are excluded. Only verified German weapon names are translated. Missing stats show as “–”. DPS may be calculated differently for shotguns/multi-projectile weapons.")}</p>
+ <p class="weapon-footnote">${tr("Deutsche Waffennamen werden nur angezeigt, wenn eine verlässliche Zuordnung vorhanden ist. Andernfalls bleibt der Originalname sichtbar.","German weapon names are shown only when a reliable match exists; otherwise the original name is retained.")}</p><p class="weapon-footnote">${tr("Es werden ausschließlich Waffen angezeigt, die mit dem ausgewählten aktuellen Modus-Lootpool abgeglichen werden konnten. Unklare Einträge und Gegenstände ohne nachweisbaren Waffenschaden werden ausgeschlossen. Nur belegte deutsche Waffennamen werden übersetzt. Fehlende Werte werden als „–“ angezeigt. DPS kann bei Schrotflinten/Mehrfachprojektilen anders berechnet werden.","Only weapons matched to the selected mode's current loot pool are displayed. Ambiguous items and entries without weapon damage are excluded. Only verified German weapon names are translated. Missing stats show as “–”. DPS may be calculated differently for shotguns/multi-projectile weapons.")}</p>
  <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
+ document.getElementById("weaponMode").value=weaponModeSelection;
+ document.getElementById("weaponMode").addEventListener("change",e=>{weaponModeSelection=e.target.value;renderWeaponDatabase();});
  for(const id of ["weaponSearch","weaponCategory","weaponRarity","weaponSort"])
   document.getElementById(id).addEventListener(id==="weaponSearch"?"input":"change",updateWeaponResults);
- const cache=getWeaponCache();
- weaponData=cache&&cache.items.length?cache.items:archivedWeapons();
- weaponState=cache&&cache.items.length?"cache":"archive";weaponUpdated=cache?.saved||null;
+ weaponData=[];weaponState="loading";weaponUpdated=null;
  refreshWeaponControls();showWeaponStatus();updateWeaponResults();
- if(cache&&cache.items.length&&Date.now()-cache.saved<WEAPON_CACHE_TTL)return;
- fetchWeaponPages().then(items=>{
+ Promise.all([fetchWeaponPages(),fetchCurrentLootIds(weaponModeSelection)]).then(([weapons,ids])=>{
   if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
-  weaponData=items;weaponState="live";weaponUpdated=Date.now();
-  try{localStorage.setItem(WEAPON_CACHE_KEY,JSON.stringify({saved:weaponUpdated,items}));}catch{}
+  const norm=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  const matched=weapons.filter(w=>ids.has(norm(w.id))||ids.has(norm(w.name)));
+  if(!matched.length)throw Error("No verified matching weapons");
+  weaponData=matched;weaponState="live";weaponUpdated=Date.now();
   refreshWeaponControls();showWeaponStatus();updateWeaponResults();
  }).catch(()=>{
   if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
-  showWeaponStatus(true);
+  weaponData=[];weaponState="error";refreshWeaponControls();showWeaponStatus(true);updateWeaponResults();
  });
 }
 function refreshWeaponControls(){
@@ -688,7 +708,9 @@ function refreshWeaponControls(){
 function showWeaponStatus(failed=false){
  const el=document.getElementById("weaponStatus");if(!el)return;
  const tr=weaponT;let msg;
- if(weaponState==="archive")msg=tr("Nur 5 legendäre Archiv-Beispiele verfügbar – Live-API wird geprüft. Die sieben Seltenheiten bleiben auswählbar.","Only 5 legendary archive examples available – checking live API. All seven rarities remain selectable.");
+ if(weaponState==="loading")msg=tr("Prüfe aktuellen Lootpool …","Checking current loot pool …");
+ else if(weaponState==="error")msg=tr("Lootpool nicht verifizierbar. Keine alten Waffen werden als aktuell ausgegeben.","Loot pool could not be verified. Historical weapons are not shown as current.");
+ else if(weaponState==="archive")msg=tr("Nur 5 legendäre Archiv-Beispiele verfügbar – Live-API wird geprüft. Die sieben Seltenheiten bleiben auswählbar.","Only 5 legendary archive examples available – checking live API. All seven rarities remain selectable.");
  else msg=`${weaponState==="live"?tr("Live-API geladen","Live API loaded"):tr("Gespeicherte API-Daten","Cached API data")} · ${new Date(weaponUpdated).toLocaleString(currentLanguage==="en"?"en-GB":"de-DE")}`;
  if(failed)msg+=" · "+tr("Aktualisierung fehlgeschlagen. Gespeicherte Daten werden angezeigt.","Refresh failed. Showing saved data.");
  el.innerHTML=`<strong>${escapeHTML(msg)}</strong><p>${tr("Quelle:","Source:")} <a href="https://fn-api.cc/docs" target="_blank" rel="noopener noreferrer">FN Api</a> · ${tr("Kostenlos, ohne Anmeldung","Free, no sign-up")}</p><button type="button" id="weaponRefresh" class="weapon-refresh">${tr("Jetzt aktualisieren","Refresh now")}</button>`;
@@ -1066,6 +1088,13 @@ async function fetchSpriteLive(){
   return entries;
  }finally{clearTimeout(timeout);}
 }
+const SPRITE_VERIFIED_DE={"Transponder Snail":"Teleschnecke"};
+function spriteLocalizedName(x){
+ if(currentLanguage==="en")return x.name;
+ const prefix=x.finish!=="Base"&&x.name.startsWith(x.finish+" ")?x.finish+" ":"";
+ const base=prefix?x.name.slice(prefix.length):x.name;
+ return prefix+(SPRITE_VERIFIED_DE[base]||base);
+}
 function renderSpritesTracker(){
  const en=currentLanguage==="en",tr=(de,english)=>en?english:de;
  const owned=loadSpriteOwned();
@@ -1079,12 +1108,17 @@ function renderSpritesTracker(){
  function draw(){
   const search=document.getElementById("spriteSearch"),grid=document.getElementById("spriteGrid");if(!grid)return;
   const query=search.value.trim().toLowerCase(),finish=document.getElementById("spriteFinish").value,filter=document.getElementById("spriteOwnedFilter").value;
-  const filtered=items.filter(x=>x.name.toLowerCase().includes(query)&&(!finish||x.finish===finish)&&(!filter||(filter==="owned"?!!(owned[x.id]||owned[x.legacyId]):!(owned[x.id]||owned[x.legacyId]))));
-  grid.innerHTML=filtered.map(x=>`<article class="sprite-card ${(owned[x.id]||owned[x.legacyId])?"is-owned":""}"><div class="sprite-card-art">${x.art?`<img src="${spriteSafe(x.art)}" alt="${spriteSafe(x.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="sprite-art-fallback" style="display:none">✦</span>`:`<span class="sprite-art-fallback">✦</span>`}</div><div class="sprite-card-copy"><small>${spriteSafe(x.finish)}</small><h3>${spriteSafe(x.name)}</h3><label class="sprite-check"><input type="checkbox" data-sprite="${spriteSafe(x.id)}" ${(owned[x.id]||owned[x.legacyId])?"checked":""}> ${tr("Erhalten","Owned")}</label></div></article>`).join("")||`<p>${tr("Keine passenden Geister gefunden.","No matching Sprites found.")}</p>`;
+  const filtered=items.filter(x=>(x.name+" "+spriteLocalizedName(x)).toLowerCase().includes(query)&&(!finish||x.finish===finish)&&(!filter||(filter==="owned"?!!(owned[x.id]||owned[x.legacyId]):!(owned[x.id]||owned[x.legacyId]))));
+  grid.innerHTML=filtered.map(x=>`<article class="sprite-card ${(owned[x.id]||owned[x.legacyId])?"is-owned":""}"><div class="sprite-card-art">${x.art?`<img src="${spriteSafe(x.art)}" alt="${spriteSafe(x.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="sprite-art-fallback" style="display:none">✦</span>`:`<span class="sprite-art-fallback">✦</span>`}</div><div class="sprite-card-copy"><small>${spriteSafe(x.finish)}</small><h3>${spriteSafe(spriteLocalizedName(x))}</h3><label class="sprite-check"><input type="checkbox" data-sprite="${spriteSafe(x.id)}" ${(owned[x.id]||owned[x.legacyId])?"checked":""}> ${tr("Erhalten","Owned")}</label></div></article>`).join("")||`<p>${tr("Keine passenden Geister gefunden.","No matching Sprites found.")}</p>`;
   const count=items.filter(x=>owned[x.id]||owned[x.legacyId]).length;
   document.getElementById("spriteProgress").textContent=count+" / "+items.length+" "+tr("erhalten","owned");
   document.getElementById("spriteMeterFill").style.width=(items.length?count/items.length*100:0)+"%";
-  grid.querySelectorAll("[data-sprite]").forEach(el=>el.addEventListener("change",()=>{owned[el.dataset.sprite]=el.checked;try{localStorage.setItem(spriteCollectionKey(),JSON.stringify(owned));}catch{}draw();}));
+  grid.querySelectorAll("[data-sprite]").forEach(el=>el.addEventListener("change",()=>{owned[el.dataset.sprite]=el.checked;try{localStorage.setItem(spriteCollectionKey(),JSON.stringify(owned));}catch{}
+ const card=el.closest(".sprite-card");if(card)card.classList.toggle("is-owned",el.checked);
+ const count=items.filter(x=>owned[x.id]||owned[x.legacyId]).length;
+ document.getElementById("spriteProgress").textContent=count+" / "+items.length+" "+tr("erhalten","owned");
+ document.getElementById("spriteMeterFill").style.width=(items.length?count/items.length*100:0)+"%";
+ if(document.getElementById("spriteOwnedFilter").value)draw();}));
  }
  for(const id of ["spriteSearch","spriteFinish","spriteOwnedFilter"])document.getElementById(id).addEventListener(id==="spriteSearch"?"input":"change",draw);
  const status=document.getElementById("spriteLiveStatus");
