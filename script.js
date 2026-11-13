@@ -37,7 +37,7 @@ function renderDashboard(){
     <div class="hero"><div class="hero-content"><div class="hero-tag">YOUR ULTIMATE FORTNITE HUB</div><h2>Level up your<br>Fortnite experience.</h2><p>Stats, tools, loot and everything you need<br class="desktop-only"> to stay ahead of the game.</p><button class="primary-button" id="exploreButton">Explore Companion <span>→</span></button></div><div class="hero-decoration">FC</div></div>
     <div class="section-heading"><div><h2>Quick Access</h2><p>Jump straight into your favorite tools.</p></div></div>
     <div class="quick-grid">
-      <button class="quick-card" data-page="Pirate Tracker"><div class="quick-icon pirate">♜</div><div><h3>Pirate Tracker</h3><p>Track chests and tokens</p></div><span class="arrow">↗</span></button>
+      <button class="quick-card" data-page="Pirate Tracker"><div class="quick-icon pirate">♜</div><div><h3>Pirate Tracker</h3><p>Track chests and treasures</p></div><span class="arrow">↗</span></button>
       <button class="quick-card" data-page="Item Shop"><div class="quick-icon shop">◇</div><div><h3>Item Shop</h3><p>Explore cosmetics</p></div><span class="arrow">↗</span></button>
       <button class="quick-card" data-page="Player Stats"><div class="quick-icon stats">▥</div><div><h3>Player Stats</h3><p>Analyze your performance</p></div><span class="arrow">↗</span></button>
       <button class="quick-card" data-page="Interactive Map"><div class="quick-icon map">◎</div><div><h3>Interactive Map</h3><p>Discover locations</p></div><span class="arrow">↗</span></button>
@@ -62,18 +62,18 @@ function escapeHTML(value){ return String(value).replace(/[&<>"']/g, ch => ({"&"
 
 function renderPirateTracker(){
   content.innerHTML = `
-    <div class="page-header"><div class="eyebrow">ZERO BUILD • LOOT TRACKING</div><h1>Pirate Tracker</h1><p>Erfasse deine geöffneten Truhen und Tokens und behalte deine Farm-Runden im Blick.</p></div>
+    <div class="page-header"><div class="eyebrow">ZERO BUILD • LOOT TRACKING</div><h1>Pirate Tracker</h1><p>Erfasse deine geöffneten Truhen und gefundenen Schätze und behalte deine Farm-Runden im Blick.</p></div>
     <div class="tracker-grid">
       <div class="metric-card"><span class="metric-label">GESAMT GEÖFFNETE TRUHEN</span><strong id="totalChests">0</strong><small>Über alle gespeicherten Runden</small></div>
-      <div class="metric-card"><span class="metric-label">GEFUNDENE TOKENS</span><strong id="totalTokens">0</strong><small>Manuell erfasste Token-Funde</small></div>
+      <div class="metric-card"><span class="metric-label">GEFUNDENE SCHÄTZE</span><strong id="totalTokens">0</strong><small>Manuell erfasste Schätze</small></div>
       <div class="metric-card"><span class="metric-label">GESPEICHERTE RUNDEN</span><strong id="roundCount">0</strong><small>Dein persönlicher Verlauf</small></div>
     </div>
     <div class="panel-card">
-      <h2>Runde erfassen</h2><p>Trage ein, wie viele Truhen und Tokens ihr in dieser Runde gefunden habt.</p>
+      <h2>Runde erfassen</h2><p>Trage ein, wie viele Truhen und Schätze ihr in dieser Runde gefunden habt.</p>
       <div class="form-grid">
         <div class="field"><label for="roundChests">Geöffnete Truhen</label><input id="roundChests" type="number" min="0" max="999" value="0"></div>
-        <div class="field"><label for="roundTokens">Gefundene Tokens</label><input id="roundTokens" type="number" min="0" max="99" value="0"></div>
-        <div class="field"><label for="roundPlayers">Aktive Spieler</label><select id="roundPlayers"><option value="1" selected>1 Spieler</option><option value="2">2 Spieler</option><option value="3">3 Spieler</option><option value="4">4 Spieler</option></select></div>
+        <div class="field"><label for="roundTokens">Gefundene Schätze</label><input id="roundTokens" type="number" min="0" max="99" value="0"></div>
+        <div class="field"><label for="roundPlayers">Aktive Spieler</label><select id="roundPlayers"><option value="1" selected>1 Spieler</option><option value="2">2 Spieler (Duo)</option><option value="3">3 Spieler</option><option value="4">4 Spieler</option></select></div>
       </div>
       <div class="action-row"><button class="btn primary" id="saveRound">Runde speichern</button><button class="btn" id="addChest">+1 Truhe</button><button class="btn" id="addFiveChests">+5 Truhen</button></div>
       <div class="result-line" id="roundFeedback">Deine Einträge werden lokal in diesem Browser gespeichert.</div>
@@ -89,7 +89,7 @@ function renderPirateTracker(){
     </div>
     <div class="panel-card">
       <div class="section-heading" style="margin-top:0"><div><h2>Rundenverlauf</h2><p>Deine zuletzt gespeicherten Farm-Runden.</p></div></div>
-      <div class="table-wrap"><table><thead><tr><th>DATUM</th><th>TRUHEN</th><th>TOKENS</th><th>SPIELER</th><th>AKTION</th></tr></thead><tbody id="roundHistory"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>DATUM</th><th>TRUHEN</th><th>SCHÄTZE</th><th>SPIELER</th><th>AKTION</th></tr></thead><tbody id="roundHistory"></tbody></table></div>
       <div class="action-row"><button class="btn danger" id="clearHistory">Verlauf löschen</button></div>
     </div>
     <footer><span>FORTNITE COMPANION</span><span>TRACKER-DATEN BLEIBEN AUF DIESEM GERÄT</span></footer>`;
@@ -118,7 +118,7 @@ function saveRound(){
   const players = Number(document.getElementById("roundPlayers").value)||2;
   trackerState.rounds.push({id:Date.now().toString(),date:new Intl.DateTimeFormat("de-DE",{dateStyle:"short",timeStyle:"short"}).format(new Date()),chests,tokens,players});
   saveState(); updatePirateTracker();
-  document.getElementById("roundFeedback").innerHTML = `Gespeichert: <strong>${chests} Truhen</strong>, <strong>${tokens} Tokens</strong> bei ${players} Spieler(n).`;
+  document.getElementById("roundFeedback").innerHTML = `Gespeichert: <strong>${chests} Truhen</strong>, <strong>${tokens} Schätze</strong> bei ${players} Spieler(n).`;
   showToast("Runde wurde gespeichert.");
 }
 function adjustChest(amount){
