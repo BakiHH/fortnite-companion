@@ -138,3 +138,7 @@ footer{display:flex;justify-content:space-between;border-top:1px solid var(--bor
 /* Epic legal notice: follow site language; preserve exact original English wording. */
 html[lang="de"] .global-epic-footer .epic-footer-en { display:none; }
 html[lang="en"] .global-epic-footer .epic-footer-de { display:none; }
+
+.quick-icon.weapons{color:#f5a85a;background:rgba(245,168,90,.12)}
+.quick-icon.sprites{color:#b69cff;background:rgba(182,156,255,.13)}
+.quick-icon.news{color:#71baf5;background:rgba(113,186,245,.12)}
