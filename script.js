@@ -29,6 +29,7 @@ function selectPage(page){
   setActivePage(page);
   if(page === "Dashboard"){ renderDashboard(); return; }
   if(page === "Pirate Tracker"){ renderPirateTracker(); return; }
+  if(page === "Item Shop"){ renderItemShop(); return; }
   renderPlaceholder(page);
 }
 function renderDashboard(){
@@ -47,6 +48,76 @@ function renderDashboard(){
     <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
   updateDate();
 }
+
+// Public third-party API. Availability and browser CORS are controlled by the provider.
+const SHOP_URL = "https://fortnite-api.com/v2/shop?language=de";
+let shopEntries = [];
+let shopTimer = null;
+let shopRequestId = 0;
+function renderItemShop(){
+  clearInterval(shopTimer);
+  content.innerHTML = `<div class="page-header shop-heading"><div><div class="eyebrow">LIVE SHOP</div><h1>Fortnite Item Shop</h1><p>Aktuelle Angebote, Bilder und V-Bucks-Preise. Automatische Prüfung alle 5 Minuten, solange diese Seite geöffnet ist.</p></div><button class="btn primary" id="refreshShop">↻ Aktualisieren</button></div>
+  <div class="panel-card shop-info"><div><strong id="shopStatus">Shop wird geladen …</strong><p id="shopDate">Daten werden abgerufen.</p></div><strong id="shopCount">–</strong></div>
+  <div class="shop-filters"><input id="shopSearch" type="search" placeholder="Cosmetics suchen …" aria-label="Cosmetics suchen"><select id="shopSort" aria-label="Sortierung"><option value="default">Shop-Reihenfolge</option><option value="az">Name A–Z</option><option value="low">Preis aufsteigend</option><option value="high">Preis absteigend</option></select></div>
+  <div id="shopResults" class="shop-results"><div class="panel-card">Lade Angebote …</div></div>
+  <p class="shop-source">Quelle: Fortnite-API.com (Drittanbieter). Keine Verbindung zu Epic Games.</p><footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
+  document.getElementById('refreshShop').addEventListener('click',()=>loadShop(true));
+  document.getElementById('shopSearch').addEventListener('input',displayShop);
+  document.getElementById('shopSort').addEventListener('change',displayShop);
+  loadShop(false);
+  shopTimer=setInterval(()=>{if(document.getElementById('shopResults'))loadShop(false);else clearInterval(shopTimer);},300000);
+}
+async function loadShop(manual){
+  const id=++shopRequestId;
+  const button=document.getElementById('refreshShop');
+  if(!button)return;
+  button.disabled=true;
+  document.getElementById('shopStatus').textContent='Shop wird aktualisiert …';
+  try{
+    const response=await fetch(SHOP_URL,{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const payload=await response.json();
+    if(!Array.isArray(payload?.data?.entries))throw new Error('Unbekanntes Datenformat');
+    if(id!==shopRequestId||!document.getElementById('shopResults'))return;
+    shopEntries=payload.data.entries;
+    document.getElementById('shopStatus').textContent='Shop-Daten geladen';
+    const shopDate=payload.data.date;
+    const validDate=shopDate&&!Number.isNaN(Date.parse(shopDate));
+    document.getElementById('shopDate').textContent=(validDate?'Shop-Stand: '+new Date(shopDate).toLocaleString('de-DE')+' · ':'')+'Abgerufen: '+new Date().toLocaleString('de-DE');
+    document.getElementById('shopCount').textContent=shopEntries.length+' Angebote';
+    displayShop();
+    if(manual)showToast('Shop aktualisiert.');
+  }catch(error){
+    if(id!==shopRequestId||!document.getElementById('shopResults'))return;
+    document.getElementById('shopStatus').textContent='Shop aktuell nicht erreichbar';
+    document.getElementById('shopDate').textContent='Die externe API ist nicht erreichbar oder blockiert Browser-Anfragen ('+error.message+').';
+    if(!shopEntries.length)document.getElementById('shopResults').innerHTML='<div class="panel-card"><h2>Keine Shop-Daten</h2><p>Bitte später erneut versuchen. Bei einer lokal geöffneten HTML-Datei kann der Browser API-Anfragen einschränken. Ein lokaler Entwicklungsserver oder GitHub Pages kann helfen.</p></div>';
+    if(manual)showToast('Shop-Aktualisierung fehlgeschlagen.');
+  }finally{if(id===shopRequestId&&document.getElementById('refreshShop'))document.getElementById('refreshShop').disabled=false;}
+}
+function shopName(entry){return entry.bundle?.name||entry.items?.map(x=>x.name).filter(Boolean).join(' + ')||'Unbekanntes Angebot';}
+function shopPrice(entry){return Number(entry.finalPrice??entry.regularPrice??entry.items?.[0]?.price?.final??0);}
+function displayShop(){
+  const target=document.getElementById('shopResults');if(!target)return;
+  const search=(document.getElementById('shopSearch')?.value||'').toLocaleLowerCase('de');
+  const sort=document.getElementById('shopSort')?.value||'default';
+  let entries=shopEntries.filter(e=>(shopName(e)+' '+(e.section?.name||'')).toLocaleLowerCase('de').includes(search));
+  if(sort==='az')entries.sort((a,b)=>shopName(a).localeCompare(shopName(b),'de'));
+  if(sort==='low')entries.sort((a,b)=>shopPrice(a)-shopPrice(b));
+  if(sort==='high')entries.sort((a,b)=>shopPrice(b)-shopPrice(a));
+  if(!entries.length){target.innerHTML='<div class="panel-card">Keine passenden Angebote gefunden.</div>';return;}
+  const groups=new Map();
+  for(const entry of entries){const section=entry.section?.name||'Weitere Angebote';if(!groups.has(section))groups.set(section,[]);groups.get(section).push(entry);}
+  target.innerHTML=[...groups].map(([section,offers])=>`<section class="shop-section"><div class="shop-section-heading"><h2>${escapeHTML(section)}</h2><span>${offers.length} Angebote</span></div><div class="shop-grid">${offers.map(entry=>{
+    const item=entry.items?.[0]||{};
+    const img=entry.bundle?.image||item.images?.featured||item.images?.icon||item.images?.smallIcon||'';
+    const safeImg=typeof img==='string'&&/^https:\/\//.test(img)?escapeHTML(img):'';
+    const rarity=item.series?.name||item.rarity?.name||'Cosmetic';
+    const price=entry.finalPrice??entry.regularPrice;
+    return `<article class="shop-card"><div class="shop-art">${safeImg?`<img loading="lazy" src="${safeImg}" alt="${escapeHTML(shopName(entry))}">`:'<span>FC</span>'}</div><div class="shop-card-body"><small>${escapeHTML(rarity)}</small><h3>${escapeHTML(shopName(entry))}</h3><strong>${price==null?'Preis nicht verfügbar':Number(price).toLocaleString('de-DE')+' V-Bucks'}</strong></div></article>`;
+  }).join('')}</div></section>`).join('');
+}
+
 function renderPlaceholder(page){
   const descriptions = {
     "Item Shop":"Hier entsteht eine Übersicht des aktuellen Fortnite Item Shops.",
@@ -82,7 +153,7 @@ function renderPirateTracker(){
       <h2>Group Farm Calculator</h2><p>Berechne die erwartete Truhenmenge einer Gruppe anhand eurer durchschnittlichen Funde pro Spieler.</p>
       <div class="form-grid">
         <div class="field"><label for="groupPlayers">Spieler in der Gruppe</label><input id="groupPlayers" type="number" min="1" max="4" value="${trackerState.groupSize}"></div>
-        <div class="field"><label for="chestsPerPlayer">Truhen pro Spieler</label><input id="chestsPerPlayer" type="number" min="0" max="200" value="0"></div>
+        <div class="field"><label for="chestsPerPlayer">Truhen pro Spieler</label><input id="chestsPerPlayer" type="number" min="0" max="200" value="25"></div>
         <div class="field"><label for="groupRuns">Anzahl der Runden</label><input id="groupRuns" type="number" min="1" max="100" value="1"></div>
       </div>
       <div class="result-line" id="groupResult"></div>
