@@ -33,6 +33,7 @@ function selectPage(page){
   if(page === "Player Stats"){ renderPlayerStats(); return; }
   if(page === "Interactive Map"){ renderInteractiveMap(); return; }
   if(page === "Weapon Database"){ renderWeaponDatabase(); return; }
+  if(page === "News & Updates"){ renderFortniteNews(); return; }
   if(page === "Settings"){ renderSettings(); return; }
   renderPlaceholder(page);
 }
@@ -509,7 +510,7 @@ async function mapImportCustom(event){const file=event.target.files?.[0];event.t
 
 // FN Api: kostenlose öffentliche API, kein Schlüssel nötig. Lokaler Archiv-Fallback.
 const WEAPON_API="https://prod.fn-api.cc/v1/weapons";
-const WEAPON_CACHE_KEY="fc_weapon_live_cache_v1";
+const WEAPON_CACHE_KEY="fc_weapon_verified_cache_v2";
 const WEAPON_CACHE_TTL=6*60*60*1000;
 const WEAPON_ARCHIVE=[
  ["Assault Rifle","Sturmgewehr","Assault","Legendary",36,55.8,5.5,25,2.16],
@@ -531,6 +532,7 @@ function normalizeWeapon(item){
  if(!item||typeof item!=="object")return null;
  const stats=item.stats||item.statistics||{};
  const name=weaponPick(item,["name","displayName","title","id"]);
+ const nameDe=weaponPick(item,["name_de","nameDe","localizedNames.de","translations.de","localizations.de"]);
  if(typeof name!=="string"||!name.trim())return null;
  const category=weaponPick(item,["category","weaponType","type"])||"Other";
  const rawRarity=weaponPick(item,["rarity","tier"]);
@@ -543,13 +545,47 @@ function normalizeWeapon(item){
  const magazine=weaponNumber(weaponPick(stats,["clipSize","magazineSize","magazine","bulletsPerClip"]));
  const reload=weaponNumber(weaponPick(stats,["reloadTime","reloadSeconds","reloadDuration"]));
  const icon=weaponPick(item,["images.icon","images.smallIcon","icon","image","images.largeIcon"]);
- return {id:String(item.id||name),name,category:String(category),rarity:String(rarity),damage,head:head??(damage!==null&&multiplier!==null?damage*multiplier:null),rate,magazine,reload,dps:dps??(damage!==null&&rate!==null?damage*rate:null),icon:typeof icon==="string"&&icon.startsWith("https://")?icon:null};
+ return {id:String(item.id||name),name,nameDe:typeof nameDe==="string"&&nameDe.trim()?nameDe.trim():null,category:String(category),rarity:String(rarity),damage,head:head??(damage!==null&&multiplier!==null?damage*multiplier:null),rate,magazine,reload,dps:dps??(damage!==null&&rate!==null?damage*rate:null),icon:typeof icon==="string"&&icon.startsWith("https://")?icon:null};
+}
+// Kuratierte deutsche Namen; unbekannte Namen bleiben im Original.
+// Kuratierte Zuordnung nur für verlässlich bekannte Fortnite-Bezeichnungen.
+// Keine maschinelle Wort-für-Wort-Übersetzung: Eigennamen bleiben unverändert.
+const WEAPON_OFFICIAL_DE={
+ "Gatekeeper Shotgun":"Torwächter-Schrotflinte",
+ "Assault Rifle":"Sturmgewehr",
+ "Ranger Assault Rifle":"Ranger-Sturmgewehr",
+ "Tactical Pistol":"Taktische Pistole",
+ "Pump Shotgun":"Pumpgun",
+ "Drum Gun":"Trommel-MP"
+};
+function weaponDisplayName(w){
+ if(currentLanguage==="en")return w.name;
+ // Deutsche Lokalisierung aus den API-Daten, falls explizit geliefert.
+ if(typeof w.nameDe==="string"&&w.nameDe.trim()&&w.nameDe!==w.name)return w.nameDe.trim();
+ return WEAPON_OFFICIAL_DE[w.name]||w.name;
+}
+// Die FN-API kann auch Verbrauchsgüter als Fernkampf-Items klassifizieren.
+// Einträge werden daher nur mit erkennbarer Waffenklasse und überprüfbaren
+// Schadenswerten aufgenommen. Unbekannte Klassen werden NICHT als Waffe behauptet.
+const WEAPON_ALLOWED_TYPES=new Set([
+ "Assault","Assault Rifle","Bow","Crossbow","DMR","Heavy","Launcher",
+ "LMG","Minigun","Pistol","Shotgun","SMG","Sniper","Rifle","Explosive"
+]);
+const WEAPON_NON_WEAPON_WORDS=/\b(apple|banana|cabbage|coconut|corn|mushroom|pepper|flopper|fish|medkit|med kit|bandage|shield potion|chug jug|slurp juice|pizza|berry|consumable|foraged|healing|heal item)\b/i;
+function isVerifiedWeapon(w){
+ if(!w||!weaponRarity(w.rarity))return false;
+ if(!WEAPON_ALLOWED_TYPES.has(w.category))return false;
+ if(WEAPON_NON_WEAPON_WORDS.test(w.name))return false;
+ // DPS allein ist kein Nachweis für eine Waffe: Apfel hat z.B. API-DPS.
+ if(w.damage===null||w.damage<=0)return false;
+ if(w.category==="Explosive"&&w.rate===null&&w.magazine===null)return false;
+ return true;
 }
 function archivedWeapons(){
  return WEAPON_ARCHIVE.map(w=>({id:w[0],name:w[0],category:w[2],rarity:w[3],damage:w[4],head:w[5],rate:w[6],magazine:w[7],reload:w[8],dps:w[4]*w[6],icon:null}));
 }
 function getWeaponCache(){
- try{const c=JSON.parse(localStorage.getItem(WEAPON_CACHE_KEY));return c&&Array.isArray(c.items)&&c.items.length&&typeof c.saved==="number"?c:null;}catch{return null;}
+ try{const c=JSON.parse(localStorage.getItem(WEAPON_CACHE_KEY));return c&&Array.isArray(c.items)&&c.items.length&&typeof c.saved==="number"?{...c,items:c.items.filter(isVerifiedWeapon)}:null;}catch{return null;}
 }
 async function fetchWeaponPages(){
  const all=[];const limit=500;
@@ -567,7 +603,7 @@ async function fetchWeaponPages(){
   const total=weaponNumber(body.total??body.pagination?.total);
   if(entries.length<limit||(total!==null&&all.length>=total))break;
  }
- const result=all.map(normalizeWeapon).filter(w=>w&&weaponRarity(w.rarity));
+ const result=all.map(normalizeWeapon).filter(isVerifiedWeapon);
  if(!result.length)throw new Error("Keine Waffen gefunden");
  return result;
 }
@@ -606,22 +642,22 @@ function weaponT(de,en){return currentLanguage==="en"?en:de;}
 function renderWeaponDatabase(){
  const token=++weaponViewToken;
  const tr=weaponT;
- content.innerHTML=`<div class="page-header"><div class="eyebrow">${tr("FORTNITE WAFFEN","FORTNITE WEAPONS")}</div><h1>${tr("Waffendatenbank","Weapon Database")}</h1><p>${tr("Waffenwerte direkt aus den Fortnite-Spieldaten.","Weapon stats directly from Fortnite game data.")}</p></div>
+ content.innerHTML=`<div class="page-header"><div class="eyebrow">${tr("FORTNITE WAFFEN","FORTNITE WEAPONS")}</div><h1>${tr("Waffendatenbank","Weapon Database")}</h1><p>${tr("Waffenwerte aus einer externen Fortnite-Datenquelle (nicht offiziell bestätigt).","Weapon stats from a third-party Fortnite data source (not officially verified).")}</p></div>
  <div class="weapon-notice" id="weaponStatus" role="status" aria-live="polite">${tr("Lade Waffendaten …","Loading weapon data …")}</div>
  <div class="weapon-controls"><input id="weaponSearch" type="search" placeholder="${tr("Waffe suchen …","Search weapons …")}" aria-label="${tr("Waffe suchen","Search weapons")}">
  <select id="weaponCategory" aria-label="${tr("Waffentyp","Weapon type")}"><option value="">${tr("Alle Waffentypen","All weapon types")}</option></select>
  <select id="weaponRarity" aria-label="${tr("Seltenheit","Rarity")}"><option value="">${tr("Alle Seltenheiten","All rarities")}</option></select>
  <select id="weaponSort" aria-label="${tr("Sortierung","Sort by")}"><option value="name">${tr("Name","Name")}</option><option value="damage">${tr("Schaden ↓","Damage ↓")}</option><option value="dps">DPS ↓</option><option value="fire">${tr("Feuerrate ↓","Fire rate ↓")}</option></select></div>
  <p class="weapon-count" id="weaponCount"></p><div class="weapon-grid" id="weaponGrid"></div>
- <p class="weapon-footnote">${tr("Die API enthält auch ältere und derzeit nicht verfügbare Waffen. Die Anzeige ist kein bestätigter aktueller Loot-Pool. Fehlende Werte werden als „–“ angezeigt. DPS kann bei Schrotflinten/Mehrfachprojektilen anders berechnet werden.","The API also includes older and currently unavailable weapons. This is not a confirmed current loot pool. Missing stats show as “–”. DPS may be calculated differently for shotguns/multi-projectile weapons.")}</p>
+ <p class="weapon-footnote">${tr("Deutsche Waffennamen werden nur angezeigt, wenn eine verlässliche Zuordnung vorhanden ist. Andernfalls bleibt der Originalname sichtbar.","German weapon names are shown only when a reliable match exists; otherwise the original name is retained.")}</p><p class="weapon-footnote">${tr("Die API enthält auch ältere und derzeit nicht verfügbare Waffen. Die Anzeige ist kein bestätigter aktueller Loot-Pool. Unklare Einträge und Gegenstände ohne nachweisbaren Waffenschaden werden ausgeschlossen. Nur belegte deutsche Waffennamen werden übersetzt. Fehlende Werte werden als „–“ angezeigt. DPS kann bei Schrotflinten/Mehrfachprojektilen anders berechnet werden.","The API also includes older and currently unavailable weapons. This is not a confirmed current loot pool. Ambiguous items and entries without weapon damage are excluded. Only verified German weapon names are translated. Missing stats show as “–”. DPS may be calculated differently for shotguns/multi-projectile weapons.")}</p>
  <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
  for(const id of ["weaponSearch","weaponCategory","weaponRarity","weaponSort"])
   document.getElementById(id).addEventListener(id==="weaponSearch"?"input":"change",updateWeaponResults);
  const cache=getWeaponCache();
- weaponData=cache?cache.items:archivedWeapons();
- weaponState=cache?"cache":"archive";weaponUpdated=cache?.saved||null;
+ weaponData=cache&&cache.items.length?cache.items:archivedWeapons();
+ weaponState=cache&&cache.items.length?"cache":"archive";weaponUpdated=cache?.saved||null;
  refreshWeaponControls();showWeaponStatus();updateWeaponResults();
- if(cache&&Date.now()-cache.saved<WEAPON_CACHE_TTL)return;
+ if(cache&&cache.items.length&&Date.now()-cache.saved<WEAPON_CACHE_TTL)return;
  fetchWeaponPages().then(items=>{
   if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
   weaponData=items;weaponState="live";weaponUpdated=Date.now();
@@ -660,10 +696,10 @@ function updateWeaponResults(){
  const q=document.getElementById("weaponSearch").value.trim().toLocaleLowerCase();
  const category=document.getElementById("weaponCategory").value,rarity=document.getElementById("weaponRarity").value,sort=document.getElementById("weaponSort").value;
  const fmt=n=>n===null||n===undefined?"–":new Intl.NumberFormat(en?"en-US":"de-DE",{maximumFractionDigits:2}).format(n);
- const matches=weaponData.filter(w=>{const r=weaponRarity(w.rarity);return r&&(!category||w.category===category)&&(!rarity||r.id===rarity)&&(!q||(w.name+" "+w.category+" "+weaponTypeLabel(w.category)+" "+w.rarity+" "+weaponRarityLabel(r)+" "+r.en+" "+r.de).toLocaleLowerCase().includes(q));});
- matches.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):((b[sort==="damage"?"damage":sort==="dps"?"dps":"rate"]??-1)-(a[sort==="damage"?"damage":sort==="dps"?"dps":"rate"]??-1)));
+ const matches=weaponData.filter(w=>{if(!isVerifiedWeapon(w))return false;const r=weaponRarity(w.rarity);return r&&(!category||w.category===category)&&(!rarity||r.id===rarity)&&(!q||(w.name+" "+weaponDisplayName(w)+" "+w.category+" "+weaponTypeLabel(w.category)+" "+w.rarity+" "+weaponRarityLabel(r)+" "+r.en+" "+r.de).toLocaleLowerCase().includes(q));});
+ matches.sort((a,b)=>sort==="name"?weaponDisplayName(a).localeCompare(weaponDisplayName(b)):((b[sort==="damage"?"damage":sort==="dps"?"dps":"rate"]??-1)-(a[sort==="damage"?"damage":sort==="dps"?"dps":"rate"]??-1)));
  document.getElementById("weaponCount").textContent=`${matches.length} ${tr("Waffen","weapons")}`;
- grid.innerHTML=matches.length?matches.slice(0,250).map(w=>`<article class="weapon-card"><div class="weapon-card-head"><div><span class="weapon-type">${escapeHTML(weaponTypeLabel(w.category))}</span><h2>${escapeHTML(w.name)}</h2></div><span class="weapon-rarity weapon-${weaponRarity(w.rarity).id}">${weaponRarityLabel(weaponRarity(w.rarity))}<span class="weapon-stars">${weaponRarity(w.rarity).stars?"★".repeat(weaponRarity(w.rarity).stars):"✦"}</span></span></div>
+ grid.innerHTML=matches.length?matches.slice(0,250).map(w=>`<article class="weapon-card"><div class="weapon-card-head"><div><span class="weapon-type">${escapeHTML(weaponTypeLabel(w.category))}</span><h2>${escapeHTML(weaponDisplayName(w))}</h2>${!en&&weaponDisplayName(w)!==w.name?`<small class="weapon-original-name">${escapeHTML(w.name)}</small>`:""}</div><span class="weapon-rarity weapon-${weaponRarity(w.rarity).id}">${weaponRarityLabel(weaponRarity(w.rarity))}<span class="weapon-stars">${weaponRarity(w.rarity).stars?"★".repeat(weaponRarity(w.rarity).stars):"✦"}</span></span></div>
  ${w.icon?`<img class="weapon-icon" loading="lazy" src="${escapeHTML(w.icon)}" alt="">`:""}
  <div class="weapon-metrics">
  <div><small>${tr("Körperschaden","Body damage")}</small><strong>${fmt(w.damage)}</strong></div>
@@ -674,6 +710,50 @@ function updateWeaponResults(){
  <div><small>${tr("Nachladen","Reload")}</small><strong>${fmt(w.reload)}${w.reload===null?"":" s"}</strong></div></div></article>`).join(""):`<div class="panel-card">${tr("Keine passenden Waffen gefunden.","No matching weapons found.")}</div>`;
  if(matches.length>250)document.getElementById("weaponCount").textContent+=` · ${tr("250 angezeigt, Suche zum Eingrenzen nutzen","showing 250; use search to narrow down")}`;
 }
+// Offizielle Fortnite-Quellen. News aus der öffentlichen Fortnite-API;
+// Social-Media-Beiträge werden nur verlinkt, nicht ohne Erlaubnis gespiegelt.
+let fortniteNewsRequest=0;
+const FORTNITE_NEWS_API='https://fortnite-api.com/v2/news/br';
+const FORTNITE_NEWS_LINKS=[
+ {url:'https://www.fortnite.com/news?lang=de',de:'Fortnite – offizielle Neuigkeiten',en:'Fortnite – official news',tag:'Epic Games'},
+ {url:'https://www.fortnite.com/search?lang=de&q=Patch-Notes',de:'Updates & Patch-Informationen',en:'Updates & patch information',tag:'Patchnotes'},
+ {url:'https://status.epicgames.com/',de:'Epic Games – Serverstatus',en:'Epic Games – service status',tag:'Status'},
+ {url:'https://x.com/fortnite?s=11',de:'Fortnite auf X',en:'Fortnite on X',tag:'X'},
+ {url:'https://x.com/FortniteStatus',de:'FortniteStatus auf X',en:'FortniteStatus on X',tag:'X'},
+ {url:'https://www.instagram.com/fortnite/',de:'Fortnite auf Instagram',en:'Fortnite on Instagram',tag:'Instagram'}
+];
+function newsText(de,en){return currentLanguage==='en'?en:de;}
+function renderFortniteNews(){
+ const token=++fortniteNewsRequest,tr=newsText;
+ content.innerHTML=`<div class="page-header"><div class="eyebrow">FORTNITE · EPIC GAMES</div><h1>${tr('Neuigkeiten & Updates','News & Updates')}</h1><p>${tr('Offizielle Quellen und aktuelle Ingame-Nachrichten.','Official sources and current in-game news.')}</p></div>
+ <div class="news-info"><strong>${tr('Offizielle Quellen statt Gerüchte','Official sources, not rumors')}</strong><p>${tr('Ingame-News werden über die öffentliche Fortnite-API geladen. Die offiziellen Kanäle von X und Instagram sind direkt verlinkt.','In-game news is fetched through the public Fortnite API. Official X and Instagram channels are linked directly.')}</p></div>
+ <div class="section-heading"><div><h2>${tr('Offizielle Kanäle','Official channels')}</h2><p>${tr('Originalquellen direkt öffnen','Open original sources')}</p></div></div>
+ <div class="news-source-grid">${FORTNITE_NEWS_LINKS.map(l=>`<a class="news-source" href="${l.url}" target="_blank" rel="noopener noreferrer"><span class="news-source-tag">${escapeHTML(l.tag)}</span><strong>${escapeHTML(currentLanguage==='en'?l.en:l.de)}</strong><span class="news-source-arrow" aria-hidden="true">↗</span></a>`).join('')}</div>
+ <div class="section-heading"><div><h2>${tr('Aktuelle Ingame-News','Latest in-game news')}</h2><p>${tr('Direkt aus den von Epic bereitgestellten Spielnachrichten.','From Epic-provided in-game news.')}</p></div><button class="news-refresh" id="newsRefresh" type="button">↻ ${tr('Aktualisieren','Refresh')}</button></div>
+ <div id="newsLoadState" class="news-loading" role="status" aria-live="polite">${tr('Nachrichten werden geladen …','Loading news …')}</div><div id="newsArticles" class="news-articles"></div>
+ <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
+ document.getElementById('newsRefresh').addEventListener('click',()=>renderFortniteNews());
+ fetch(FORTNITE_NEWS_API+'?language='+(currentLanguage==='en'?'en':'de'),{headers:{Accept:'application/json'}})
+ .then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json();})
+ .then(body=>{
+  if(token!==fortniteNewsRequest||!document.getElementById('newsArticles'))return;
+  const raw=body?.data?.motds||body?.data?.messages||body?.data?.entries||[];
+  const entries=Array.isArray(raw)?raw:[];
+  document.getElementById('newsLoadState').textContent=entries.length?tr('Ingame-Nachrichten · Quelle: Fortnite-API','In-game news · Source: Fortnite API'):tr('Momentan keine Ingame-News verfügbar. Nutze die offiziellen Links oben.','No in-game news available right now. Use the official links above.');
+  document.getElementById('newsArticles').innerHTML=entries.slice(0,16).map(entry=>{
+   const title=String(entry.title||entry.name||tr('Fortnite-Nachricht','Fortnite news'));
+   const body=String(entry.body||entry.description||'');
+   const image=entry.image||entry.tileImage||'';
+   const validImage=typeof image==='string'&&/^https:\/\//.test(image)?image:null;
+   const sourceUrl=typeof entry.link==='string'&&/^https:\/\//.test(entry.link)?entry.link:null;
+   return `<article class="news-article">${validImage?`<img src="${escapeHTML(validImage)}" loading="lazy" alt="">`:''}<div class="news-article-body"><span class="news-source-tag">Fortnite Ingame</span><h3>${escapeHTML(title)}</h3><p>${escapeHTML(body)}</p>${sourceUrl?`<a href="${escapeHTML(sourceUrl)}" target="_blank" rel="noopener noreferrer">${tr('Original öffnen ↗','Open original ↗')}</a>`:''}</div></article>`;
+  }).join('');
+ }).catch(()=>{
+  if(token!==fortniteNewsRequest||!document.getElementById('newsLoadState'))return;
+  document.getElementById('newsLoadState').textContent=tr('Ingame-News konnten nicht geladen werden. Die offiziellen Links oben funktionieren unabhängig davon.','Could not load in-game news. The official links above work independently.');
+ });
+}
+
 function renderPlaceholder(page){
   const descriptions = {
     "Item Shop":"Hier entsteht eine Übersicht des aktuellen Fortnite Item Shops.",
