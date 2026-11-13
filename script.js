@@ -675,7 +675,7 @@ function renderWeaponDatabase(){
  <select id="weaponRarity" aria-label="${tr("Seltenheit","Rarity")}"><option value="">${tr("Alle Seltenheiten","All rarities")}</option></select>
  <select id="weaponSort" aria-label="${tr("Sortierung","Sort by")}"><option value="name">${tr("Name","Name")}</option><option value="damage">${tr("Schaden ↓","Damage ↓")}</option><option value="dps">DPS ↓</option><option value="fire">${tr("Feuerrate ↓","Fire rate ↓")}</option></select></div>
  <p class="weapon-count" id="weaponCount"></p><div class="weapon-grid" id="weaponGrid"></div>
- <p class="weapon-footnote">${tr("Deutsche Waffennamen werden nur angezeigt, wenn eine verlässliche Zuordnung vorhanden ist. Andernfalls bleibt der Originalname sichtbar.","German weapon names are shown only when a reliable match exists; otherwise the original name is retained.")}</p><p class="weapon-footnote">${tr("Es werden ausschließlich Waffen angezeigt, die mit dem ausgewählten aktuellen Modus-Lootpool abgeglichen werden konnten. Unklare Einträge und Gegenstände ohne nachweisbaren Waffenschaden werden ausgeschlossen. Nur belegte deutsche Waffennamen werden übersetzt. Fehlende Werte werden als „–“ angezeigt. DPS kann bei Schrotflinten/Mehrfachprojektilen anders berechnet werden.","Only weapons matched to the selected mode's current loot pool are displayed. Ambiguous items and entries without weapon damage are excluded. Only verified German weapon names are translated. Missing stats show as “–”. DPS may be calculated differently for shotguns/multi-projectile weapons.")}</p>
+ <p class="weapon-footnote">${tr("Deutsche Waffennamen werden nur angezeigt, wenn eine verlässliche Zuordnung vorhanden ist. Andernfalls bleibt der Originalname sichtbar.","German weapon names are shown only when a reliable match exists; otherwise the original name is retained.")}</p><p class="weapon-footnote">${tr("Wenn der aktuelle Modus-Lootpool verifiziert werden kann, werden nur passende Waffen angezeigt. Sonst sind die angezeigten API-Waffen ausdrücklich nicht als saisonaktuell bestätigt. Unklare Einträge und Gegenstände ohne nachweisbaren Waffenschaden werden ausgeschlossen. Nur belegte deutsche Waffennamen werden übersetzt. Fehlende Werte werden als „–“ angezeigt. DPS kann bei Schrotflinten/Mehrfachprojektilen anders berechnet werden.","When the current mode loot pool can be verified, only matching weapons are shown. Otherwise API weapons are explicitly marked as not season-verified. Ambiguous items and entries without weapon damage are excluded. Only verified German weapon names are translated. Missing stats show as “–”. DPS may be calculated differently for shotguns/multi-projectile weapons.")}</p>
  <footer><span>FORTNITE COMPANION</span><span>NOT AFFILIATED WITH EPIC GAMES</span></footer>`;
  document.getElementById("weaponMode").value=weaponModeSelection;
  document.getElementById("weaponMode").addEventListener("change",e=>{weaponModeSelection=e.target.value;renderWeaponDatabase();});
@@ -683,16 +683,31 @@ function renderWeaponDatabase(){
   document.getElementById(id).addEventListener(id==="weaponSearch"?"input":"change",updateWeaponResults);
  weaponData=[];weaponState="loading";weaponUpdated=null;
  refreshWeaponControls();showWeaponStatus();updateWeaponResults();
- Promise.all([fetchWeaponPages(),fetchCurrentLootIds(weaponModeSelection)]).then(([weapons,ids])=>{
+ const mode=weaponModeSelection;
+ const cached=getWeaponCache();
+ const showUnverified=(items)=>{
+  weaponData=items;weaponState="unverified";weaponUpdated=cached?.saved||null;
+  refreshWeaponControls();showWeaponStatus(true);updateWeaponResults();
+ };
+ // Zuerst Waffen abrufen; anschließend nur bei erfolgreich verifiziertem Lootpool filtern.
+ fetchWeaponPages().then(async weapons=>{
   if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
-  const norm=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-  const matched=weapons.filter(w=>ids.has(norm(w.id))||ids.has(norm(w.name)));
-  if(!matched.length)throw Error("No verified matching weapons");
-  weaponData=matched;weaponState="live";weaponUpdated=Date.now();
+  try{
+   const ids=await fetchCurrentLootIds(mode);
+   if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
+   const norm=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+   const matched=weapons.filter(w=>ids.has(norm(w.id))||ids.has(norm(w.name)));
+   if(!matched.length)throw Error("No verified matching weapons");
+   weaponData=matched;weaponState="live";weaponUpdated=Date.now();
+  }catch{
+   if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
+   showUnverified(weapons);return;
+  }
   refreshWeaponControls();showWeaponStatus();updateWeaponResults();
  }).catch(()=>{
   if(token!==weaponViewToken||!document.getElementById("weaponGrid"))return;
-  weaponData=[];weaponState="error";refreshWeaponControls();showWeaponStatus(true);updateWeaponResults();
+  if(cached&&cached.items.length)showUnverified(cached.items);
+  else{weaponData=[];weaponState="error";refreshWeaponControls();showWeaponStatus(true);updateWeaponResults();}
  });
 }
 function refreshWeaponControls(){
@@ -709,10 +724,11 @@ function showWeaponStatus(failed=false){
  const el=document.getElementById("weaponStatus");if(!el)return;
  const tr=weaponT;let msg;
  if(weaponState==="loading")msg=tr("Prüfe aktuellen Lootpool …","Checking current loot pool …");
+ else if(weaponState==="unverified")msg=tr("Waffen-API geladen, aber aktueller Season-/Modus-Lootpool nicht verifiziert. Die angezeigten Waffen können aus älteren Seasons stammen.","Weapon API loaded, but current season/mode loot pool is unverified. Displayed weapons may be from past seasons.");
  else if(weaponState==="error")msg=tr("Lootpool nicht verifizierbar. Keine alten Waffen werden als aktuell ausgegeben.","Loot pool could not be verified. Historical weapons are not shown as current.");
  else if(weaponState==="archive")msg=tr("Nur 5 legendäre Archiv-Beispiele verfügbar – Live-API wird geprüft. Die sieben Seltenheiten bleiben auswählbar.","Only 5 legendary archive examples available – checking live API. All seven rarities remain selectable.");
  else msg=`${weaponState==="live"?tr("Live-API geladen","Live API loaded"):tr("Gespeicherte API-Daten","Cached API data")} · ${new Date(weaponUpdated).toLocaleString(currentLanguage==="en"?"en-GB":"de-DE")}`;
- if(failed)msg+=" · "+tr("Aktualisierung fehlgeschlagen. Gespeicherte Daten werden angezeigt.","Refresh failed. Showing saved data.");
+ if(failed&&weaponState!=="unverified")msg+=" · "+tr("Aktualisierung fehlgeschlagen.","Refresh failed.");
  el.innerHTML=`<strong>${escapeHTML(msg)}</strong><p>${tr("Quelle:","Source:")} <a href="https://fn-api.cc/docs" target="_blank" rel="noopener noreferrer">FN Api</a> · ${tr("Kostenlos, ohne Anmeldung","Free, no sign-up")}</p><button type="button" id="weaponRefresh" class="weapon-refresh">${tr("Jetzt aktualisieren","Refresh now")}</button>`;
  document.getElementById("weaponRefresh").addEventListener("click",()=>{
   try{localStorage.removeItem(WEAPON_CACHE_KEY);}catch{}
@@ -1088,13 +1104,41 @@ async function fetchSpriteLive(){
   return entries;
  }finally{clearTimeout(timeout);}
 }
-const SPRITE_VERIFIED_DE={"Transponder Snail":"Teleschnecke"};
+// Deutsche Anzeigenamen für alle 13 Sprite-Familien der Treasure-Hunters-Sammlung.
+// Redaktionelle Übersetzungen, NICHT als offizielle Epic-Lokalisierung ausgeben.
+// Die englischen Originalnamen und IDs bleiben für API, Bilder und Sammelstand unverändert.
+const SPRITE_NAMES_DE={
+ "Halfpeel'd":"Halbgeschält",
+ "Re-Pete":"Wieder-Pete",
+ "Barry O'Fish":"Barry O'Fisch",
+ "Chester":"Chester",
+ "Exmarks":"X-Markierung",
+ "Wayfinder":"Wegweiser",
+ "Kelper":"Tangling",
+ "Sweet Dreams":"Süße Träume",
+ "Lil' Squibbly":"Kleiner Squibbly",
+ "Lil' Flacko":"Kleiner Flacko",
+ "Plundarrgh":"Plündarrgh",
+ "Transponder Snail":"Teleschnecke",
+ "Lil' Uzi Vert Jr.":"Kleiner Uzi Vert Jr."
+};
+const SPRITE_VARIANTS_DE={Base:"Normal",Fortune:"Glück",Cursed:"Verflucht",Gold:"Gold",Jeweled:"Juwelenbesetzt"};
 function spriteLocalizedName(x){
- if(currentLanguage==="en")return x.name;
- const prefix=x.finish!=="Base"&&x.name.startsWith(x.finish+" ")?x.finish+" ":"";
- const base=prefix?x.name.slice(prefix.length):x.name;
- return prefix+(SPRITE_VERIFIED_DE[base]||base);
+ const original=String(x.name||"").trim();
+ if(currentLanguage==="en")return original;
+ // Variantenerkennung unabhängig von API-Schreibweise und dem finish-Feld.
+ const match=/^(Fortune|Cursed|Jeweled|Gold)\s+/i.exec(original);
+ const variant=match?match[1].toLowerCase():String(x.finish||"Base").toLowerCase();
+ const base=match?original.slice(match[0].length):original;
+ const normalized=base.replace(/[’‘]/g,"'").trim();
+ const german=SPRITE_NAMES_DE[normalized]||normalized;
+ const prefixes={fortune:"Glücks-",cursed:"Verfluchter ",jeweled:"Juwelenbesetzter ",gold:"Goldener "};
+ return (prefixes[variant]||"")+german;
 }
+function spriteLocalizedVariant(finish){
+ return currentLanguage==="en"?String(finish||"Base"):(SPRITE_VARIANTS_DE[finish]||String(finish||"Normal"));
+}
+
 function renderSpritesTracker(){
  const en=currentLanguage==="en",tr=(de,english)=>en?english:de;
  const owned=loadSpriteOwned();
@@ -1103,13 +1147,13 @@ function renderSpritesTracker(){
  content.innerHTML=`<div class="page-header"><div class="eyebrow">FORTNITE · SPRITES</div><h1>${tr("Geister","Sprites")}</h1><p>${tr("Aktuell verfügbare Geister mit Bildern aus den Fortnite-Spieldaten. Fortschritt wird lokal gespeichert.","Currently enabled Sprites with artwork from Fortnite game data. Progress is saved locally.")}</p></div>
  <div class="weapon-notice" id="spriteLiveStatus" role="status">${tr("Lade aktuelle Geister …","Loading current Sprites …")}</div>
  <div class="sprite-toolbar"><div><strong id="spriteProgress">0 / 0</strong><div class="sprite-meter"><span id="spriteMeterFill"></span></div></div><input id="spriteSearch" type="search" placeholder="${tr("Geist suchen …","Search Sprites …")}" aria-label="${tr("Geist suchen","Search Sprites")}"><select id="spriteFinish"><option value="">${tr("Alle Varianten","All variants")}</option><option value="Base">Base</option><option value="Fortune">Fortune</option><option value="Cursed">Cursed</option><option value="Gold">Gold</option></select><select id="spriteOwnedFilter"><option value="">${tr("Alle anzeigen","Show all")}</option><option value="owned">${tr("Erhalten","Owned")}</option><option value="missing">${tr("Fehlen noch","Missing")}</option></select></div>
- <div class="sprite-grid" id="spriteGrid"></div><p class="weapon-footnote">${tr("Quelle: FN Api (inoffizielle Spieldaten). Nur als aktiviert gemeldete Geister. Falls die API keine Bilder liefert, erscheint ein Platzhalter. Die Zuordnung zu einer konkreten Season hängt von den API-Metadaten ab.","Source: FN Api (unofficial game data). Only reported enabled Sprites. Missing artwork displays a placeholder. Exact season classification depends on API metadata.")}</p>
+ <div class="sprite-grid" id="spriteGrid"></div><p class="weapon-footnote">${tr("Deutsche Geisternamen sind redaktionelle Übersetzungen, keine bestätigten offiziellen Epic-Namen.","German Sprite names are editorial translations, not confirmed official Epic names.")}</p><p class="weapon-footnote">${tr("Quelle: FN Api (inoffizielle Spieldaten). Nur als aktiviert gemeldete Geister. Falls die API keine Bilder liefert, erscheint ein Platzhalter. Die Zuordnung zu einer konkreten Season hängt von den API-Metadaten ab.","Source: FN Api (unofficial game data). Only reported enabled Sprites. Missing artwork displays a placeholder. Exact season classification depends on API metadata.")}</p>
  `;
  function draw(){
   const search=document.getElementById("spriteSearch"),grid=document.getElementById("spriteGrid");if(!grid)return;
   const query=search.value.trim().toLowerCase(),finish=document.getElementById("spriteFinish").value,filter=document.getElementById("spriteOwnedFilter").value;
   const filtered=items.filter(x=>(x.name+" "+spriteLocalizedName(x)).toLowerCase().includes(query)&&(!finish||x.finish===finish)&&(!filter||(filter==="owned"?!!(owned[x.id]||owned[x.legacyId]):!(owned[x.id]||owned[x.legacyId]))));
-  grid.innerHTML=filtered.map(x=>`<article class="sprite-card ${(owned[x.id]||owned[x.legacyId])?"is-owned":""}"><div class="sprite-card-art">${x.art?`<img src="${spriteSafe(x.art)}" alt="${spriteSafe(x.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="sprite-art-fallback" style="display:none">✦</span>`:`<span class="sprite-art-fallback">✦</span>`}</div><div class="sprite-card-copy"><small>${spriteSafe(x.finish)}</small><h3>${spriteSafe(spriteLocalizedName(x))}</h3><label class="sprite-check"><input type="checkbox" data-sprite="${spriteSafe(x.id)}" ${(owned[x.id]||owned[x.legacyId])?"checked":""}> ${tr("Erhalten","Owned")}</label></div></article>`).join("")||`<p>${tr("Keine passenden Geister gefunden.","No matching Sprites found.")}</p>`;
+  grid.innerHTML=filtered.map(x=>`<article class="sprite-card ${(owned[x.id]||owned[x.legacyId])?"is-owned":""}"><div class="sprite-card-art">${x.art?`<img src="${spriteSafe(x.art)}" alt="${spriteSafe(x.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="sprite-art-fallback" style="display:none">✦</span>`:`<span class="sprite-art-fallback">✦</span>`}</div><div class="sprite-card-copy"><small>${spriteSafe(spriteLocalizedVariant(x.finish))}</small><h3>${spriteSafe(spriteLocalizedName(x))}</h3><label class="sprite-check"><input type="checkbox" data-sprite="${spriteSafe(x.id)}" ${(owned[x.id]||owned[x.legacyId])?"checked":""}> ${tr("Erhalten","Owned")}</label></div></article>`).join("")||`<p>${tr("Keine passenden Geister gefunden.","No matching Sprites found.")}</p>`;
   const count=items.filter(x=>owned[x.id]||owned[x.legacyId]).length;
   document.getElementById("spriteProgress").textContent=count+" / "+items.length+" "+tr("erhalten","owned");
   document.getElementById("spriteMeterFill").style.width=(items.length?count/items.length*100:0)+"%";
