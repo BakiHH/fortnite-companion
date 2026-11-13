@@ -71,9 +71,9 @@ function renderPirateTracker(){
     <div class="panel-card">
       <h2>Runde erfassen</h2><p>Trage ein, wie viele Truhen und Tokens ihr in dieser Runde gefunden habt.</p>
       <div class="form-grid">
-        <div class="field"><label for="roundChests">Geöffnete Truhen</label><input id="roundChests" type="number" min="0" max="999" value="40"></div>
+        <div class="field"><label for="roundChests">Geöffnete Truhen</label><input id="roundChests" type="number" min="0" max="999" value="0"></div>
         <div class="field"><label for="roundTokens">Gefundene Tokens</label><input id="roundTokens" type="number" min="0" max="99" value="0"></div>
-        <div class="field"><label for="roundPlayers">Aktive Spieler</label><select id="roundPlayers"><option value="1">1 Spieler</option><option value="2" selected>2 Spieler (Duo)</option><option value="3">3 Spieler</option><option value="4">4 Spieler</option></select></div>
+        <div class="field"><label for="roundPlayers">Aktive Spieler</label><select id="roundPlayers"><option value="1" selected>1 Spieler</option><option value="2">2 Spieler (Duo)</option><option value="3">3 Spieler</option><option value="4">4 Spieler</option></select></div>
       </div>
       <div class="action-row"><button class="btn primary" id="saveRound">Runde speichern</button><button class="btn" id="addChest">+1 Truhe</button><button class="btn" id="addFiveChests">+5 Truhen</button></div>
       <div class="result-line" id="roundFeedback">Deine Einträge werden lokal in diesem Browser gespeichert.</div>
