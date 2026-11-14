@@ -1108,20 +1108,20 @@ async function fetchSpriteLive(){
 // Die englischen Originalnamen und IDs bleiben für API, Bilder und Sammelstand unverändert.
 const SPRITE_NAMES_DE={
  "Halfpeel'd":"Halbgeschält",
- "Re-Pete":"Wieder-Pete",
+ "Re-Pete":"Re-Pete",
  "Barry O'Fish":"Barry O'Fisch",
  "Chester":"Chester",
- "Exmarks":"X-Markierung",
- "Wayfinder":"Wegweiser",
- "Kelper":"Tangling",
- "Sweet Dreams":"Süße Träume",
- "Lil' Squibbly":"Kleiner Squibbly",
- "Lil' Flacko":"Kleiner Flacko",
+ "Exmarks":"Karte",
+ "Wayfinder":"Kompass",
+ "Kelper":"Kelper",
+ "Sweet Dreams":"Schlaf gut",
+ "Lil' Squibbly":"Lil' Squibbly",
+ "Lil' Flacko":"Lil' Flacko",
  "Plundarrgh":"Plündarrgh",
  "Transponder Snail":"Teleschnecke",
- "Lil' Uzi Vert Jr.":"Kleiner Uzi Vert Jr."
+ "Lil' Uzi Vert Jr.":"Lil' Uzi Vert Jr."
 };
-const SPRITE_VARIANTS_DE={Base:"Normal",Fortune:"Glück",Cursed:"Verflucht",Gold:"Gold",Jeweled:"Juwelenbesetzt"};
+const SPRITE_VARIANTS_DE={Base:"Normal",Fortune:"Glück",Cursed:"Verflucht",Gold:"Gold",Jeweled:"Schatzspürer"};
 function spriteLocalizedName(x){
  const original=String(x.name||"").trim().replace(/^A\s+(?=\S)/i,"");
  if(currentLanguage==="en")return original;
@@ -1131,7 +1131,7 @@ function spriteLocalizedName(x){
  const base=match?original.slice(match[0].length):original;
  const normalized=base.replace(/[’‘]/g,"'").trim();
  const german=SPRITE_NAMES_DE[normalized]||normalized;
- const prefixes={fortune:"Glücks-",cursed:"Verfluchter ",jeweled:"Juwelenbesetzter ",gold:"Goldener "};
+ const prefixes={fortune:"Glücks-",cursed:"Verfluchter ",jeweled:"Schatzspürer ",gold:"Goldener "};
  return (prefixes[variant]||"")+german;
 }
 function spriteLocalizedVariant(finish){
