@@ -369,12 +369,58 @@ function loadCustomMapMarkers(){try{const data=JSON.parse(localStorage.getItem(C
 function saveCustomMapMarkers(){try{localStorage.setItem(CUSTOM_MAP_KEY,JSON.stringify(islandMapState.custom));return true;}catch{showToast('Speichern im Browser nicht möglich.');return false;}}
 function mapEscape(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
+// Season-specific, manually curated approximate NPC areas; not exact spawn coordinates.
+const MAP_NPC_SEASON="Treasure Hunters · November 2026";
+const MAP_NPCS=[
+ {name:"Treasure Hunter Hope",poi:"Lantern Landing",kind:"hire"},
+ {name:"Charlotte-Sensei",poi:"The $.$. Rocky",kind:"hire"},
+ {name:"Buccaneer Brigand Jones",poi:"Windmill Village",kind:"hire"},
+ {name:"Kawaii Team Leader",poi:"Fortune's Fort",kind:"hire",note:"Auch als Lil’ Uzi’s Stronghold bezeichnet; Standort kann variieren"},
+ {name:"Nami",poi:"Windmill Village",kind:"rift",note:"Südlich des Dorfes"},
+ {name:"Roronoa Zoro",poi:"Arlong Park",kind:"rift"},
+ {name:"Monkey D. Luffy",poi:"Loguetown",kind:"rift"},
+ {name:"Usopp",poi:"Loguetown",kind:"rift"},
+ {name:"Sanji",poi:"Busy Bay",kind:"rift"}
+];
+let mapNpcVisible=true;
+function mapNpcTr(de,en){return typeof currentLanguage!=="undefined"&&currentLanguage==="en"?en:de;}
+function mapNpcMatches(){
+ const normalize=x=>String(x||"").toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9]/g,"");
+ return MAP_NPCS.map(n=>{
+  const poi=islandMapState.pois.find(p=>normalize(p.name)===normalize(n.poi)||
+   (n.name==="Kawaii Team Leader"&&["fortunesfort","liluzisstronghold"].includes(normalize(p.name))));
+  return {...n,poiData:poi||null};
+ });
+}
+function mapDrawNpcs(){
+ const root=document.getElementById('mapNpcMarkers'),list=document.getElementById('mapNpcList');
+ if(!root||!list)return;
+ root.replaceChildren();list.replaceChildren();
+ const matches=mapNpcMatches();
+ for(const npc of matches){
+  const pt=npc.poiData?mapCoordinate(npc.poiData):null;
+  const item=document.createElement('button');item.type='button';item.className='map-poi-item';
+  const label=npc.kind==='hire'?mapNpcTr('Anheuerbar','Hireable'):mapNpcTr('Riss','Rift');
+  item.textContent=(npc.kind==='hire'?'🛡️ ':'🌀 ')+npc.name+' · '+npc.poi+' · '+label+(pt?'':' · '+mapNpcTr('Position nicht verfügbar','Position unavailable'));
+  item.title=npc.note||mapNpcTr('Ungefährer POI-Bereich, kein exakter Spawnpunkt','Approximate POI area, not an exact spawn');
+  item.onclick=()=>{if(!pt)return;const i=islandMapState.pois.indexOf(npc.poiData);if(i>=0)mapFocus(i);};
+  list.appendChild(item);
+  if(!mapNpcVisible||!pt)continue;
+  const pin=document.createElement('button');pin.type='button';pin.className='map-npc-pin';
+  pin.textContent=npc.kind==='hire'?'🛡️':'🌀';pin.style.left=pt.x+'%';pin.style.top=pt.y+'%';
+  pin.title=npc.name+' · '+npc.poi+' ('+label+') · '+mapNpcTr('ungefährer Bereich','approximate area');
+  pin.setAttribute('aria-label',pin.title);
+  pin.onclick=()=>{const i=islandMapState.pois.indexOf(npc.poiData);if(i>=0)mapFocus(i);};
+  root.appendChild(pin);
+ }
+ const count=document.getElementById('mapNpcCount');if(count)count.textContent='('+matches.filter(n=>n.poiData&&mapCoordinate(n.poiData)).length+'/'+matches.length+')';
+}
 function renderInteractiveMap(){
   content.innerHTML=`<div class="page-header"><div class="eyebrow">LIVE ISLAND MAP</div><h1>Interactive Map</h1><p>Die aktuelle Fortnite Battle-Royale-Insel – auch für Zero Build. Zoome, verschiebe die Karte und entdecke benannte Orte.</p></div>
   <div class="panel-card map-tools"><div><strong id="islandMapStatus">Aktuelle Inselkarte wird geladen …</strong><p id="islandMapUpdated">Quelle: Fortnite-API.com</p></div><button class="btn primary" id="mapReload">↻ Aktualisieren</button></div>
-  <div class="map-layout"><div class="panel-card map-main"><div class="map-toolbar"><button class="btn" id="mapZoomIn" aria-label="Vergrößern">＋</button><button class="btn" id="mapZoomOut" aria-label="Verkleinern">－</button><button class="btn" id="mapReset">⤢ Zentrieren</button><label class="map-check"><input type="checkbox" id="mapShowPois" checked> POIs anzeigen</label></div>
-  <div class="map-viewport" id="mapViewport"><div class="map-stage" id="mapStage"><img id="mapIslandImage" alt="Aktuelle Fortnite Inselkarte" draggable="false"><div id="mapMarkers" class="map-markers"></div><div id="mapCustomMarkers" class="map-custom-markers"></div></div><div id="mapLoading" class="map-loading">Lade Kartenbild …</div></div><p class="map-caption">Ziehen zum Verschieben · Mausrad oder +/− zum Zoomen · Auf dem Handy mit zwei Fingern zoomen</p></div>
-  <aside class="panel-card map-sidebar"><section class="map-custom-panel"><h2>Eigene Fundorte</h2><p class="map-help">Kostenlos · Nur in diesem Browser gespeichert · Keine offiziellen Spawn-Daten</p>
+  <div class="map-layout"><div class="panel-card map-main"><div class="map-toolbar"><button class="btn" id="mapZoomIn" aria-label="Vergrößern">＋</button><button class="btn" id="mapZoomOut" aria-label="Verkleinern">－</button><button class="btn" id="mapReset">⤢ Zentrieren</button><label class="map-check"><input type="checkbox" id="mapShowPois" checked> POIs anzeigen</label><label class="map-check"><input type="checkbox" id="mapShowNpcs" checked> ${mapNpcTr("NPCs anzeigen","Show NPCs")}</label></div>
+  <div class="map-viewport" id="mapViewport"><div class="map-stage" id="mapStage"><img id="mapIslandImage" alt="Aktuelle Fortnite Inselkarte" draggable="false"><div id="mapMarkers" class="map-markers"></div><div id="mapNpcMarkers" class="map-npc-markers"></div><div id="mapCustomMarkers" class="map-custom-markers"></div></div><div id="mapLoading" class="map-loading">Lade Kartenbild …</div></div><p class="map-caption">Ziehen zum Verschieben · Mausrad oder +/− zum Zoomen · Auf dem Handy mit zwei Fingern zoomen</p></div>
+  <aside class="panel-card map-sidebar"><section class="map-npc-panel"><h2>${mapNpcTr("NPC-Standorte","NPC locations")} <span id="mapNpcCount"></span></h2><p class="map-help">${mapNpcTr("Treasure Hunters · November 2026 · Battle Royale & Null Bauen. Markierungen zeigen den ungefähren POI-Bereich, nicht den exakten Spawn. Änderungen durch Updates möglich.","Treasure Hunters · November 2026 · Battle Royale & Zero Build. Pins show approximate POI areas, not exact spawns. Updates may change locations.")}</p><div id="mapNpcList" class="map-poi-list"></div><p class="map-help"><a href="https://games.gg/fortnite/guides/fortnite-treasure-hunters-all-npc-locations/" target="_blank" rel="noopener noreferrer">${mapNpcTr("NPC-Standorte: Quellenübersicht","NPC location source")}</a></p></section><div class="map-poi-divider"></div><section class="map-custom-panel"><h2>Eigene Fundorte</h2><p class="map-help">Kostenlos · Nur in diesem Browser gespeichert · Keine offiziellen Spawn-Daten</p>
   <label class="map-field-label" for="mapCustomCategory">Marker-Typ</label><select id="mapCustomCategory" class="map-custom-select"><option value="chest">📦 Truhe</option><option value="ammo">🎯 Munitionskiste</option><option value="vehicle">🚗 Fahrzeug</option><option value="routeA">🟣 Duo Route A</option><option value="routeB">🔵 Duo Route B</option><option value="other">📍 Sonstiges</option></select>
   <label class="map-field-label" for="mapCustomNote">Notiz (optional)</label><input id="mapCustomNote" maxlength="100" placeholder="z. B. Dachboden / Haus" />
   <button id="mapPlaceMarker" class="btn primary map-place-button" type="button">＋ Marker auf Karte setzen</button>
@@ -397,6 +443,7 @@ function renderInteractiveMap(){
   document.getElementById('mapZoomOut').onclick=()=>mapZoom(1/1.3);
   document.getElementById('mapReset').onclick=()=>{islandMapState.zoom=1;islandMapState.offsetX=0;islandMapState.offsetY=0;mapTransform();};
   document.getElementById('mapShowPois').onchange=e=>{islandMapState.showPois=e.target.checked;mapDrawMarkers();};
+  document.getElementById('mapShowNpcs').onchange=e=>{mapNpcVisible=e.target.checked;mapDrawNpcs();};
   document.getElementById('mapPoiSearch').oninput=mapDrawList;
   document.getElementById('mapReload').onclick=()=>loadIslandMap();
   viewport.addEventListener('wheel',e=>{e.preventDefault();mapZoom(e.deltaY<0?1.15:1/1.15);},{passive:false});
@@ -438,7 +485,7 @@ function mapDrawList(){const list=document.getElementById('mapPoiList');if(!list
 }
 function mapFocus(index){islandMapState.selected=index;const pt=mapCoordinate(islandMapState.pois[index]);
   if(pt){const vp=document.getElementById('mapViewport');const rect=vp.getBoundingClientRect();const side=Math.min(rect.width,rect.height);islandMapState.zoom=Math.max(1.6,islandMapState.zoom);islandMapState.offsetX=(.5-pt.x/100)*side*islandMapState.zoom;islandMapState.offsetY=(.5-pt.y/100)*side*islandMapState.zoom;mapTransform();}
-  mapDrawMarkers();mapDrawList();
+  mapDrawMarkers();mapDrawList();mapDrawNpcs();
 }
 async function loadIslandMap(){
   const status=document.getElementById('islandMapStatus'),loading=document.getElementById('mapLoading'),img=document.getElementById('mapIslandImage');if(!status)return;
@@ -451,7 +498,7 @@ async function loadIslandMap(){
     const data=json.data;
     const imageUrl=data.images?.pois||data.images?.blank||'https://fortnite-api.com/images/map_de.png';
     const safeUrl=new URL(imageUrl,location.href);if(safeUrl.protocol!=='https:')throw new Error('Ungültige Kartenbild-Adresse');
-    img.onload=()=>{if(document.getElementById('mapLoading'))loading.hidden=true;mapDrawMarkers();};
+    img.onload=()=>{if(document.getElementById('mapLoading'))loading.hidden=true;mapDrawMarkers();mapDrawNpcs();};
     img.onerror=()=>{if(document.getElementById('mapLoading'))loading.textContent='Kartenbild konnte nicht geladen werden.';};
     img.src=safeUrl.href;
     islandMapState.pois=Array.isArray(data.pois)?data.pois.filter(p=>p&&p.name):[];
@@ -459,7 +506,7 @@ async function loadIslandMap(){
     status.textContent='Aktuelle Fortnite-Inselkarte';
     document.getElementById('mapIslandImage').alt='Aktuelle Fortnite-Inselkarte';
     const updated=document.getElementById('islandMapUpdated');if(updated)updated.textContent='Live-Kartendaten · '+islandMapState.pois.length+' Orte · Quelle: Fortnite-API.com';
-    mapDrawList();mapDrawMarkers();mapDrawCustomMarkers();
+    mapDrawList();mapDrawMarkers();mapDrawNpcs();mapDrawCustomMarkers();
   }catch(err){if(document.getElementById('islandMapStatus')){status.textContent='Karte derzeit nicht verfügbar';loading.textContent='Die aktuelle Karte konnte nicht geladen werden. Bitte später erneut versuchen.';}}
 }
 

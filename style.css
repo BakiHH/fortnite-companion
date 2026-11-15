@@ -142,3 +142,5 @@ html[lang="en"] .global-epic-footer .epic-footer-de { display:none; }
 .quick-icon.weapons{color:#f5a85a;background:rgba(245,168,90,.12)}
 .quick-icon.sprites{color:#b69cff;background:rgba(182,156,255,.13)}
 .quick-icon.news{color:#71baf5;background:rgba(113,186,245,.12)}
+
+.map-npc-markers{position:absolute;inset:0;pointer-events:none}.map-npc-pin{position:absolute;transform:translate(-50%,-50%);border:1px solid #a9d9ff;background:#10243bd9;color:white;border-radius:50%;width:30px;height:30px;cursor:pointer;pointer-events:auto;z-index:5;box-shadow:0 2px 9px #0008}.map-npc-pin:hover{transform:translate(-50%,-50%) scale(1.18)}.map-npc-panel{margin-bottom:16px}.map-npc-panel .map-poi-item{text-align:left;width:100%}
