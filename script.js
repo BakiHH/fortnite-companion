@@ -371,16 +371,18 @@ function mapEscape(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp
 
 // Season-specific, manually curated approximate NPC areas; not exact spawn coordinates.
 const MAP_NPC_SEASON="Treasure Hunters · November 2026";
+// Approximate percentages read from the Treasure Hunters island map, not exact NPC spawns.
+// These fallbacks work even if the public map API omits POI coordinates.
 const MAP_NPCS=[
- {name:"Treasure Hunter Hope",poi:"Lantern Landing",kind:"hire"},
- {name:"Charlotte-Sensei",poi:"The $.$. Rocky",kind:"hire"},
- {name:"Buccaneer Brigand Jones",poi:"Windmill Village",kind:"hire"},
- {name:"Kawaii Team Leader",poi:"Fortune's Fort",kind:"hire",note:"Auch als Lil’ Uzi’s Stronghold bezeichnet; Standort kann variieren"},
- {name:"Nami",poi:"Windmill Village",kind:"rift",note:"Südlich des Dorfes"},
- {name:"Roronoa Zoro",poi:"Arlong Park",kind:"rift"},
- {name:"Monkey D. Luffy",poi:"Loguetown",kind:"rift"},
- {name:"Usopp",poi:"Loguetown",kind:"rift"},
- {name:"Sanji",poi:"Busy Bay",kind:"rift"}
+ {name:"Treasure Hunter Hope",poi:"Lantern Landing",kind:"hire",x:43.7,y:55.0},
+ {name:"Charlotte-Sensei",poi:"The $.$. Rocky",kind:"hire",x:68.6,y:65.2},
+ {name:"Buccaneer Brigand Jones",poi:"Windmill Village",kind:"hire",x:36.5,y:81.0},
+ {name:"Kawaii Team Leader",poi:"Fortune's Fort",kind:"hire",x:null,y:null,note:"Fundgebiet noch nicht zuverlässig auf dieser Karte zugeordnet"},
+ {name:"Nami",poi:"Windmill Village",kind:"rift",x:35.3,y:84.5,note:"Südlich von Windmill Village"},
+ {name:"Roronoa Zoro",poi:"Arlong Park",kind:"rift",x:31.7,y:59.8},
+ {name:"Monkey D. Luffy",poi:"Loguetown",kind:"rift",x:47.0,y:75.1},
+ {name:"Usopp",poi:"Loguetown",kind:"rift",x:49.0,y:77.5},
+ {name:"Sanji",poi:"Busy Bay",kind:"rift",x:69.1,y:81.1}
 ];
 let mapNpcVisible=true;
 function mapNpcTr(de,en){return typeof currentLanguage!=="undefined"&&currentLanguage==="en"?en:de;}
@@ -392,35 +394,50 @@ function mapNpcMatches(){
   return {...n,poiData:poi||null};
  });
 }
+function mapNpcPoint(npc){
+ // Use a known approximate point for this season; otherwise use API POI coordinates.
+ if(Number.isFinite(npc.x)&&Number.isFinite(npc.y))return {x:npc.x,y:npc.y};
+ return npc.poiData?mapCoordinate(npc.poiData):null;
+}
+function mapFocusPoint(pt){
+ if(!pt)return;
+ const vp=document.getElementById('mapViewport');if(!vp)return;
+ const rect=vp.getBoundingClientRect();
+ islandMapState.zoom=Math.max(1.6,islandMapState.zoom);
+ islandMapState.offsetX=(.5-pt.x/100)*rect.width*islandMapState.zoom;
+ islandMapState.offsetY=(.5-pt.y/100)*rect.height*islandMapState.zoom;
+ mapTransform();
+}
 function mapDrawNpcs(){
  const root=document.getElementById('mapNpcMarkers'),list=document.getElementById('mapNpcList');
  if(!root||!list)return;
  root.replaceChildren();list.replaceChildren();
  const matches=mapNpcMatches();
  for(const npc of matches){
-  const pt=npc.poiData?mapCoordinate(npc.poiData):null;
+  const pt=mapNpcPoint(npc);
   const item=document.createElement('button');item.type='button';item.className='map-poi-item';
   const label=npc.kind==='hire'?mapNpcTr('Anheuerbar','Hireable'):mapNpcTr('Riss','Rift');
-  item.textContent=(npc.kind==='hire'?'🛡️ ':'🌀 ')+npc.name+' · '+npc.poi+' · '+label+(pt?'':' · '+mapNpcTr('Position nicht verfügbar','Position unavailable'));
+  item.textContent=(npc.kind==='hire'?'🛡️ ':'🌀 ')+npc.name+' · '+npc.poi+' · '+label+(pt?' · '+mapNpcTr('ungefährer Bereich','approximate area'):' · '+mapNpcTr('Position nicht verfügbar','Position unavailable'));
   item.title=npc.note||mapNpcTr('Ungefährer POI-Bereich, kein exakter Spawnpunkt','Approximate POI area, not an exact spawn');
-  item.onclick=()=>{if(!pt)return;const i=islandMapState.pois.indexOf(npc.poiData);if(i>=0)mapFocus(i);};
+  item.disabled=!pt;
+  item.onclick=()=>mapFocusPoint(pt);
   list.appendChild(item);
   if(!mapNpcVisible||!pt)continue;
   const pin=document.createElement('button');pin.type='button';pin.className='map-npc-pin';
   pin.textContent=npc.kind==='hire'?'🛡️':'🌀';pin.style.left=pt.x+'%';pin.style.top=pt.y+'%';
   pin.title=npc.name+' · '+npc.poi+' ('+label+') · '+mapNpcTr('ungefährer Bereich','approximate area');
   pin.setAttribute('aria-label',pin.title);
-  pin.onclick=()=>{const i=islandMapState.pois.indexOf(npc.poiData);if(i>=0)mapFocus(i);};
+  pin.onclick=()=>mapFocusPoint(pt);
   root.appendChild(pin);
  }
- const count=document.getElementById('mapNpcCount');if(count)count.textContent='('+matches.filter(n=>n.poiData&&mapCoordinate(n.poiData)).length+'/'+matches.length+')';
+ const count=document.getElementById('mapNpcCount');if(count)count.textContent='('+matches.filter(mapNpcPoint).length+'/'+matches.length+')';
 }
 function renderInteractiveMap(){
   content.innerHTML=`<div class="page-header"><div class="eyebrow">LIVE ISLAND MAP</div><h1>Interactive Map</h1><p>Die aktuelle Fortnite Battle-Royale-Insel – auch für Zero Build. Zoome, verschiebe die Karte und entdecke benannte Orte.</p></div>
   <div class="panel-card map-tools"><div><strong id="islandMapStatus">Aktuelle Inselkarte wird geladen …</strong><p id="islandMapUpdated">Quelle: Fortnite-API.com</p></div><button class="btn primary" id="mapReload">↻ Aktualisieren</button></div>
   <div class="map-layout"><div class="panel-card map-main"><div class="map-toolbar"><button class="btn" id="mapZoomIn" aria-label="Vergrößern">＋</button><button class="btn" id="mapZoomOut" aria-label="Verkleinern">－</button><button class="btn" id="mapReset">⤢ Zentrieren</button><label class="map-check"><input type="checkbox" id="mapShowPois" checked> POIs anzeigen</label><label class="map-check"><input type="checkbox" id="mapShowNpcs" checked> ${mapNpcTr("NPCs anzeigen","Show NPCs")}</label></div>
   <div class="map-viewport" id="mapViewport"><div class="map-stage" id="mapStage"><img id="mapIslandImage" alt="Aktuelle Fortnite Inselkarte" draggable="false"><div id="mapMarkers" class="map-markers"></div><div id="mapNpcMarkers" class="map-npc-markers"></div><div id="mapCustomMarkers" class="map-custom-markers"></div></div><div id="mapLoading" class="map-loading">Lade Kartenbild …</div></div><p class="map-caption">Ziehen zum Verschieben · Mausrad oder +/− zum Zoomen · Auf dem Handy mit zwei Fingern zoomen</p></div>
-  <aside class="panel-card map-sidebar"><section class="map-npc-panel"><h2>${mapNpcTr("NPC-Standorte","NPC locations")} <span id="mapNpcCount"></span></h2><p class="map-help">${mapNpcTr("Treasure Hunters · November 2026 · Battle Royale & Null Bauen. Markierungen zeigen den ungefähren POI-Bereich, nicht den exakten Spawn. Änderungen durch Updates möglich.","Treasure Hunters · November 2026 · Battle Royale & Zero Build. Pins show approximate POI areas, not exact spawns. Updates may change locations.")}</p><div id="mapNpcList" class="map-poi-list"></div><p class="map-help"><a href="https://games.gg/fortnite/guides/fortnite-treasure-hunters-all-npc-locations/" target="_blank" rel="noopener noreferrer">${mapNpcTr("NPC-Standorte: Quellenübersicht","NPC location source")}</a></p></section><div class="map-poi-divider"></div><section class="map-custom-panel"><h2>Eigene Fundorte</h2><p class="map-help">Kostenlos · Nur in diesem Browser gespeichert · Keine offiziellen Spawn-Daten</p>
+  <aside class="panel-card map-sidebar"><section class="map-npc-panel"><h2>${mapNpcTr("NPC-Standorte","NPC locations")} <span id="mapNpcCount"></span></h2><p class="map-help">${mapNpcTr("Treasure Hunters · November 2026 · Battle Royale & Null Bauen. Die Marker zeigen geschätzte Fundgebiete, keine exakten Spawnpunkte. Bei Kartenupdates bitte neu prüfen.","Treasure Hunters · November 2026 · Battle Royale & Zero Build. Pins show estimated areas, not exact spawns. Recheck after map updates.")}</p><div id="mapNpcList" class="map-poi-list"></div><p class="map-help"><a href="https://games.gg/fortnite/guides/fortnite-treasure-hunters-all-npc-locations/" target="_blank" rel="noopener noreferrer">${mapNpcTr("NPC-Standorte: Quellenübersicht","NPC location source")}</a></p></section><div class="map-poi-divider"></div><section class="map-custom-panel"><h2>Eigene Fundorte</h2><p class="map-help">Kostenlos · Nur in diesem Browser gespeichert · Keine offiziellen Spawn-Daten</p>
   <label class="map-field-label" for="mapCustomCategory">Marker-Typ</label><select id="mapCustomCategory" class="map-custom-select"><option value="chest">📦 Truhe</option><option value="ammo">🎯 Munitionskiste</option><option value="vehicle">🚗 Fahrzeug</option><option value="routeA">🟣 Duo Route A</option><option value="routeB">🔵 Duo Route B</option><option value="other">📍 Sonstiges</option></select>
   <label class="map-field-label" for="mapCustomNote">Notiz (optional)</label><input id="mapCustomNote" maxlength="100" placeholder="z. B. Dachboden / Haus" />
   <button id="mapPlaceMarker" class="btn primary map-place-button" type="button">＋ Marker auf Karte setzen</button>
